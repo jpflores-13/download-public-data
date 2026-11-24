@@ -5,6 +5,7 @@
 ##   bash scripts/ena_download.sh PRJNA229998 fastq      # a whole project
 ##   bash scripts/ena_download.sh SRR1039508 fastq       # one run
 ## Accepts project (PRJNA/PRJEB, SRP), sample (SAMN, SRS), experiment (SRX) or run (SRR/ERR/DRR) accessions.
+## Works on Linux and macOS: uses wget or curl, and md5sum or macOS `md5`.
 
 set -euo pipefail
 
@@ -31,9 +32,22 @@ tail -n +2 "$OUT/${ACC}_filereport.tsv" | while IFS=$'\t' read -r run sample exp
     echo "${sums[$i]}  $f" >> "$OUT/${ACC}.md5"
     if [ -s "$OUT/$f" ]; then echo "have $f"; continue; fi
     echo "downloading $f"
-    wget -q -c -O "$OUT/$f" "https://${urls[$i]}"
+    if command -v wget >/dev/null; then
+      wget -q -c -O "$OUT/$f" "https://${urls[$i]}"
+    else
+      curl -sS -L -C - -o "$OUT/$f" "https://${urls[$i]}"
+    fi
   done
 done
 
 ## 3. Verify
-( cd "$OUT" && md5sum -c "${ACC}.md5" )
+cd "$OUT"
+if command -v md5sum >/dev/null; then
+  md5sum -c "${ACC}.md5"
+else                                   # macOS
+  bad=0
+  while read -r sum f; do
+    if [ "$(md5 -q "$f")" = "$sum" ]; then echo "$f: OK"; else echo "$f: FAILED"; bad=1; fi
+  done < "${ACC}.md5"
+  exit $bad
+fi

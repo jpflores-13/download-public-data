@@ -86,4 +86,5 @@ Next to the FASTQs, keep:
 - the toolkit version (`fasterq-dump --version > sra_tools_version.txt`),
 - a `README` with the paper, the GEO accession and the date you downloaded.
 
-Then copy everything to `/proj`, because `/work` is purged.
+Then copy everything to permanent, backed-up storage (on a cluster, scratch
+space is usually purged).

@@ -2,8 +2,8 @@
 
 An in-depth, beginner-friendly guide to downloading raw sequencing data from
 GEO / SRA / ENA with the SRA Toolkit (`prefetch`, `vdb-validate`,
-`fasterq-dump`), plus scripts for doing it at scale on a SLURM cluster
-(written for UNC's Longleaf).
+`fasterq-dump`), plus scripts for doing it at scale on a laptop, a workstation or any SLURM
+cluster.
 
 Read it online: <https://jpflores-13.github.io/download-public-data>
 

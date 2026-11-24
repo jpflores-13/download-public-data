@@ -9,7 +9,7 @@ and conversion then needs less temporary space.
 ## One run
 
 ```bash
-cd /work/users/j/d/jdoe/airway
+cd ~/public_data/GSE52778     # any folder with enough free space
 prefetch SRR1039508
 ```
 
@@ -87,13 +87,13 @@ skips runs that are already complete.
 
 1. `prefetch` prints "... is larger than maximum allowed: skipped". What do
    you add?
-2. Why `cd` into `/work` before running `prefetch` on Longleaf?
+2. Why `cd` into a folder with plenty of space before running `prefetch`?
 
 ::: {.callout-note collapse="true" appearance="simple"}
 ## Answers
 
 1. `--max-size u` (or a size larger than the run, e.g. `--max-size 100g`).
-2. With `--prefetch-to-cwd`, files go to the current folder. `/work` has the
-   space; your home doesn't.
+2. With `--prefetch-to-cwd`, files go to the current folder, and the
+   conversion that follows needs 10–20× the download's size free.
 :::
 :::

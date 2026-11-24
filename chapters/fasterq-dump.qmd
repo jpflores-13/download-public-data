@@ -67,8 +67,8 @@ temporary files and then the (uncompressed) FASTQ. NCBI's own guidance:
 - so in total, plan for **~10–20× the `.sra` size** free while it runs.
 
 For a 2.5 GB airway run that's tens of GB. Point `--temp` at a filesystem with
-room. On Longleaf that's your `/work` folder, not `/tmp` on a node, which may
-be small. Temp files are deleted at the end. If a job is killed they may be
+room: a local folder or external drive on a laptop; the **scratch** space
+on a cluster (not `/tmp` on a compute node, which is often small). Temp files are deleted at the end. If a job is killed they may be
 left behind as `fasterq.tmp.*`; delete them.
 
 ```bash

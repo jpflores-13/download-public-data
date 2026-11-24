@@ -52,8 +52,8 @@ fasterq-dump --ngc prj_12345.ngc sra/SRR...
 ```
 
 Treat controlled data according to your approval terms (storage location,
-no sharing, deletion at the end of the project). Ask UNC Research Computing
-where such data may be stored.
+no sharing, deletion at the end of the project). Ask your institution's research
+computing or IT security team where such data may be stored.
 
 ## Data only in GEO (no SRA)
 

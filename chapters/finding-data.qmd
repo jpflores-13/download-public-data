@@ -74,8 +74,8 @@ See [Downloading from ENA](ena.qmd) to get the FASTQs this way.
 
 ## Option C: the command line
 
-**Entrez Direct** (NCBI's command-line tools; `module avail edirect` or
-install from NCBI) gives the same run table as Run Selector:
+**Entrez Direct** (NCBI's command-line tools; `conda install -c bioconda entrez-direct`,
+or a cluster module) gives the same run table as Run Selector:
 
 ```bash
 esearch -db sra -query PRJNA229998 | efetch -format runinfo > runinfo.csv
@@ -98,6 +98,6 @@ pysradb metadata SRP033351 --detailed > SRP033351_metadata.tsv
 - [ ] You know the read length (`AvgSpotLen`, halved for paired).
 - [ ] If the paper says, note the library kit / strandedness (often only in
       the GEO *Extraction protocol* or *Library construction* fields).
-- [ ] You've added up `Bytes` and have **10–20×** that free on `/work`
-      for the conversion step.
+- [ ] You've added up `Bytes` and have **10–20×** that free for the
+      conversion step (or use ENA, which needs no conversion).
 - [ ] The data are open access (not dbGaP/EGA).

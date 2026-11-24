@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH -J sra_download
-#SBATCH -p general
 #SBATCH -t 12:00:00
 #SBATCH -N 1
 #SBATCH -c 6
@@ -20,7 +19,8 @@
 ##   1. a text file with one run accession (SRR/ERR/DRR) per line
 ##   2. output folder for FASTQ files (default: fastq)
 ##
-## %4 in --array limits it to 4 downloads at a time; be kind to NCBI and to /work.
+## %4 in --array limits it to 4 downloads at a time; be kind to NCBI and the filesystem.
+## Uses the cluster's default partition; add `-p <partition>` to sbatch to choose one.
 
 set -euo pipefail
 
@@ -34,9 +34,16 @@ ACC=$(sed -n "${TASK}p" "$ACC_LIST" | tr -d '[:space:]')
 [ -n "$ACC" ] || { echo "No accession on line $TASK of $ACC_LIST"; exit 1; }
 echo "[$(date)] task $TASK -> $ACC"
 
-## Load tools. Module names differ between clusters: check `module avail sra` and `module avail pigz`.
-module load sratoolkit
-module load pigz 2>/dev/null || true
+## Find the tools. If fasterq-dump is already on PATH (e.g. an activated conda
+## environment), use it; otherwise try environment modules. Set SRA_MODULE to
+## your cluster's module name if it is neither of the defaults.
+if ! command -v fasterq-dump >/dev/null 2>&1; then
+  for m in ${SRA_MODULE:-} sra-tools sratoolkit; do
+    module load "$m" 2>/dev/null && break
+  done
+fi
+command -v fasterq-dump >/dev/null 2>&1 || { echo "fasterq-dump not found: activate conda or set SRA_MODULE"; exit 1; }
+command -v pigz >/dev/null 2>&1 || module load pigz 2>/dev/null || true
 if command -v pigz >/dev/null; then ZIP="pigz -p $THREADS"; else ZIP="gzip"; fi
 
 SRA_DIR="$OUTDIR/sra"

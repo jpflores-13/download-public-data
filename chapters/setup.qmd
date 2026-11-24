@@ -2,34 +2,58 @@
 
 The **SRA Toolkit** is NCBI's set of command-line programs for SRA data. You
 need three of them: `prefetch` (download), `vdb-validate` (check) and
-`fasterq-dump` (convert to FASTQ). This chapter gets them working and
-configured so they don't fill your home folder.
+`fasterq-dump` (convert to FASTQ). This chapter gets them installed and
+configured on whatever computer you have: a laptop, a lab workstation, or a
+shared cluster.
 
-## Option 1: the Longleaf module
+## Where should you run this?
 
-```bash
-module avail sra          # find the module name and versions
-module load sratoolkit    # use the name `module avail` shows; add /<version> to pin one
-fasterq-dump --version
+```{mermaid}
+flowchart TD
+  Q1{"How much data?<br/>(add up the Bytes column)"} -->|"a few runs,<br/>< ~50 GB of .sra"| L["Laptop or workstation<br/>with ~20x that free on disk"]
+  Q1 -->|"many runs, or<br/>more than you have disk for"| Q2{"Do you have a<br/>computing cluster?"}
+  Q2 -->|yes| C["Cluster: run in its<br/>scratch space, as batch jobs"]
+  Q2 -->|no| W["Workstation with a large<br/>external or network drive,<br/>or download from ENA in chunks"]
 ```
 
-Use the newest 3.x version available. Older 2.x versions have bugs that
-newer ones fix and lack some options.
+| Requirement | Why |
+|---|---|
+| macOS or Linux (Windows: use **WSL**, the Windows Subsystem for Linux) | The toolkit and the scripts here are command-line tools |
+| **Free disk space ~10–20× the `.sra` size**, while converting | `fasterq-dump` writes large temporary files ([details](fasterq-dump.qmd#disk-space)) |
+| A few CPU cores (4–8) | `fasterq-dump` is multi-threaded |
+| A stable internet connection | Downloads of many GB |
 
-## Option 2: conda (any Linux or Mac)
+## Install: pick one option
+
+### Option 1: conda (recommended; any Mac or Linux)
+
+[conda](https://docs.conda.io/) installs bioinformatics software into an
+isolated *environment* without needing administrator rights. If you don't
+have it, install [Miniforge](https://github.com/conda-forge/miniforge) first.
 
 ```bash
 conda create -n sra -c conda-forge -c bioconda sra-tools pigz
-conda activate sra
+conda activate sra          # do this in every new terminal
 fasterq-dump --version
 ```
 
-## Option 3: NCBI's prebuilt binaries
+::: {.callout-note}
+## Apple Silicon Macs (M1/M2/M3/M4)
+
+If conda says a package isn't available for your platform, create the environment
+for Intel Macs, which runs through Rosetta:
+
+```bash
+CONDA_SUBDIR=osx-64 conda create -n sra -c conda-forge -c bioconda sra-tools pigz
+```
+:::
+
+### Option 2: NCBI's prebuilt binaries
 
 From the [SRA Toolkit install page](https://github.com/ncbi/sra-tools/wiki/02.-Installing-SRA-Toolkit):
 
 ```bash
-## Linux (Ubuntu build; AlmaLinux build also available)
+## Linux (Ubuntu build; an AlmaLinux build is also available)
 wget --output-document sratoolkit.tar.gz \
   https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-ubuntu64.tar.gz
 ## macOS
@@ -37,9 +61,32 @@ curl --output sratoolkit.tar.gz \
   https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-mac64.tar.gz
 
 tar -vxzf sratoolkit.tar.gz
-export PATH=$PWD/sratoolkit.3.*/bin:$PATH     # add to ~/.bashrc to keep it
+export PATH=$PWD/sratoolkit.3.*/bin:$PATH     # add this line to ~/.bashrc or ~/.zshrc to keep it
 which fasterq-dump
 ```
+
+### Option 3: your cluster's module system
+
+Most university clusters already have the toolkit installed as an
+**environment module**:
+
+```bash
+module avail sra            # look for sra-tools, sratoolkit, or similar
+module load <name>/<version>
+fasterq-dump --version
+```
+
+Prefer a 3.x version. Older 2.x versions have bugs and lack options used here.
+
+::: {.callout-tip collapse="true"}
+## On UNC Longleaf
+
+`module avail sra` lists the toolkit. Run downloads in your `/work` space
+(`/work/users/<first letter>/<second letter>/<onyen>/`), inside an interactive job
+(`srun -p interact -n 1 -c 6 --mem=8g -t 4:00:00 --pty bash`) or with `sbatch`,
+never on the login node. Copy finished `.fastq.gz` files to your lab's `/proj`
+space, because `/work` is purged.
+:::
 
 ## Check it works
 
@@ -55,22 +102,22 @@ You should see eight lines of FASTQ. If it hangs or errors, see
 ## Configure it (once)
 
 The toolkit keeps settings in `~/.ncbi/user-settings.mkfg`, edited with
-`vdb-config`. Two things matter on a cluster.
+`vdb-config`.
 
 ### Where downloads go
 
-Depending on configuration, `prefetch` saves into the **current
-directory** or into a **user repository** (by default under your home, e.g.
-`~/ncbi/public/sra`). Home on Longleaf is small, and a full home breaks
-everything else. Choose the current directory, and always `cd` into
-`/work` before downloading:
+Depending on configuration, `prefetch` saves into the **current directory**
+or into a **user repository** under your home folder (e.g.
+`~/ncbi/public/sra`). On a laptop that may be fine. On a cluster, home folders
+are usually small, and a full home breaks everything else. The predictable
+choice everywhere: save to the current directory, and `cd` to a folder with
+space before downloading.
 
 ```bash
 vdb-config --prefetch-to-cwd
 ```
 
-(Or run `vdb-config -i`, open the **TOOLS** tab, and set the prefetch
-location there.)
+(Or run `vdb-config -i`, open the **TOOLS** tab, and set the location there.)
 
 ### SRA Lite or Normalized {#sra-lite-or-normalized}
 
@@ -78,28 +125,35 @@ location there.)
 **"Prefer SRA Lite files with simplified base quality scores"**
 ([what that means](databases.qmd#whats-in-an-.sra-file)):
 
-- **Unticked** (prefer Normalized, with full qualities): the safe choice when
-  you'll look at quality plots or quality-trim.
+- **Unticked** (prefer Normalized, full qualities): the safe choice if you'll
+  look at quality plots or quality-trim.
 - **Ticked**: smaller downloads, constant quality 30.
 
-Navigate with the arrow keys or the highlighted letters, toggle with space,
-and **Save** and **Exit** at the bottom.
+Move with the arrow keys or the highlighted letters, toggle with space, then
+**Save** and **Exit**.
 
 ::: {.callout-note}
-## vdb-config on a fresh install
-
-Newer toolkit versions may ask you to run `vdb-config -i` once before the
-first download, even if you change nothing: open it, save, exit.
+Newer toolkit versions may ask you to run `vdb-config -i` once before the first
+download, even if you change nothing: open it, save, exit.
 :::
 
-## Where to run, and where to put the data
-
-| Thing | Where | Why |
-|---|---|---|
-| Downloads and conversion | `/work/users/<o>/<n>/<onyen>/...` | Large and fast; conversion needs lots of temporary space |
-| Final `.fastq.gz` you'll keep | `/proj/<lab>/...` | Backed up; `/work` is purged |
-| Commands | An interactive job or `sbatch` | Conversion is CPU- and disk-heavy: not on the login node |
+## A folder layout that works anywhere
 
 ```bash
-srun -p interact -n 1 -c 6 --mem=8g -t 4:00:00 --pty bash   # interactive job with 6 CPUs
+mkdir -p ~/public_data/GSE52778 && cd ~/public_data/GSE52778   # or a scratch/external drive
+mkdir -p sra tmp fastq logs
 ```
+
+```
+GSE52778/
+├── SRR_Acc_List.txt     # runs to download
+├── SraRunTable.csv      # metadata
+├── sra/                 # .sra files from prefetch (deleted after conversion)
+├── tmp/                 # fasterq-dump temporary files
+├── fastq/               # the .fastq.gz you keep
+└── logs/
+```
+
+On a cluster, put this in the **scratch** space (large and fast, but usually
+not backed up), and copy `fastq/` and the metadata somewhere permanent when
+you're done.

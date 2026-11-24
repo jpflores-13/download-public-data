@@ -1,8 +1,8 @@
-# Worked example: airway, from GEO to bagPipes {#sec-worked-example}
+# Worked example: airway, from GEO to a pipeline {#sec-worked-example}
 
-This chapter goes from the paper to a running `RNApipe` on eight samples of
-the airway dataset (four donors, untreated or dexamethasone). Budget roughly
-**250 GB** of `/work` while converting (it shrinks to about 20 GB of
+This chapter goes from the paper to a pipeline-ready samplesheet for eight
+samples of the airway dataset (four donors, untreated or dexamethasone). Budget roughly
+**250 GB** of free disk while converting (it shrinks to about 20 GB of
 `.fastq.gz`) and a few hours of wall time.
 
 ## 1. Find the runs
@@ -31,16 +31,46 @@ repository's `examples/` folder hold exactly this:
 
 ## 2. Download
 
+Set up a folder (anywhere with ~250 GB free):
+
 ```bash
-cd /work/users/j/d/jdoe
+cd /path/with/space        # laptop folder, external drive, or cluster scratch
 git clone https://github.com/jpflores-13/download-public-data.git
 mkdir -p airway/logs && cd airway
 cp ../download-public-data/examples/airway_* .
-
-sbatch --array=1-8%4 ../download-public-data/scripts/download_sra.sh airway_SRR_Acc_List.txt fastq
 ```
 
-When all tasks finish:
+Then pick **one** way to download:
+
+::: {.panel-tabset}
+## From ENA (any computer, no toolkit)
+
+```bash
+while read -r acc; do
+  bash ../download-public-data/scripts/ena_download.sh "$acc" fastq
+done < airway_SRR_Acc_List.txt
+```
+
+ENA files are already gzipped and MD5-checked. Then make the read-count table
+the next steps use:
+
+```bash
+for f in fastq/*.fastq.gz; do echo -e "$(basename $f)\t$(( $(zcat < $f | wc -l) / 4 ))"; done > fastq/read_counts.tsv
+```
+
+## SRA Toolkit, simple loop (any computer)
+
+Use Route A from [Downloading many runs](at-scale.qmd#route-a-a-simple-loop-any-computer),
+with `SRR_Acc_List.txt` replaced by `airway_SRR_Acc_List.txt`.
+
+## SRA Toolkit, SLURM cluster
+
+```bash
+sbatch --array=1-8%4 ../download-public-data/scripts/download_sra.sh airway_SRR_Acc_List.txt fastq
+```
+:::
+
+When the downloads finish:
 
 ```bash
 ls fastq/
@@ -62,9 +92,12 @@ ls merged/
 # N052611_dex_R1_001.fastq.gz  N052611_dex_R2_001.fastq.gz  N052611_untrt_R1_001.fastq.gz ...
 ```
 
-## 4. Write a bagPipes samplesheet
+## 4. Write a samplesheet
 
-bagPipes needs `Read1`, `Read2` and `Sequencing_Directory`, plus whatever
+Every pipeline wants a table that says which files belong to which sample and
+condition. The columns differ between pipelines; here is one for
+[bagPipes](https://github.com/PhanstielLab/bagPipes) `RNApipe` (a Snakemake
+pipeline for SLURM clusters), built from the run table. bagPipes needs `Read1`, `Read2` and `Sequencing_Directory`, plus whatever
 metadata columns your `fileNamesFrom` and `mergeBy` use. Build it from the
 run table:
 
@@ -84,7 +117,7 @@ column -t RNAsamplesheet.txt
 And in `config/RNAconfig.yaml`:
 
 ```yaml
-samplesheet: '/work/users/j/d/jdoe/airway/RNAsamplesheet.txt'
+samplesheet: '/path/with/space/airway/RNAsamplesheet.txt'
 fileNamesFrom: ['Project', 'Cell_Type', 'Donor', 'Treatment']
 mergeBy: ['Project', 'Cell_Type', 'Treatment']    # one merged track per treatment
 ```
@@ -93,6 +126,19 @@ Choose the hg38 reference block, and check the library type after the first run
 (Salmon's `lib_format_counts.json`). If it is `IU`, the library is unstranded:
 set `stranded: False`. Then `sbatch RNApipe.sh`, as in
 [omics-walkthru: Running RNApipe](https://jpflores-13.github.io/omics-walkthru/rna-seq/running-rnapipe.html).
+
+For other pipelines, the same information goes into their own format. For
+example, [nf-core/rnaseq](https://nf-co.re/rnaseq) wants a CSV with
+`sample,fastq_1,fastq_2,strandedness`:
+
+```bash
+{
+  echo "sample,fastq_1,fastq_2,strandedness"
+  tail -n +2 airway_runs_to_samples.tsv | while IFS=$'\t' read -r run sample; do
+    echo "$sample,$DIR${sample}_R1_001.fastq.gz,$DIR${sample}_R2_001.fastq.gz,auto"
+  done
+} > nfcore_samplesheet.csv
+```
 
 ::: {.callout-tip}
 ## In DESeq2
@@ -105,6 +151,6 @@ treatments *within* donors: `design = ~ Donor + Treatment`.
 
 ```bash
 fasterq-dump --version > sra_tools_version.txt
-mkdir -p /proj/<lab>/public_data/GSE52778
-rsync -av merged/ airway_* fastq/read_counts.tsv sra_tools_version.txt /proj/<lab>/public_data/GSE52778/
+mkdir -p /path/to/permanent/storage/GSE52778
+rsync -av merged/ airway_* fastq/read_counts.tsv sra_tools_version.txt /path/to/permanent/storage/GSE52778/
 ```

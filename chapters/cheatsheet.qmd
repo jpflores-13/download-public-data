@@ -2,7 +2,7 @@
 
 ```bash
 ## setup (once)
-module load sratoolkit                # or: conda create -n sra -c conda-forge -c bioconda sra-tools pigz
+conda create -n sra -c conda-forge -c bioconda sra-tools pigz; conda activate sra   # or: module load <sra module>
 vdb-config --prefetch-to-cwd          # downloads go to the current folder
 vdb-config -i                         # interactive: SRA Lite vs Normalized, locations
 fastq-dump --stdout -X 2 SRR390728    # test
@@ -18,7 +18,10 @@ vdb-validate sra/SRR...
 fasterq-dump sra/SRR... --threads 6 --temp tmp --outdir fastq
 pigz -p 6 fastq/SRR...*.fastq
 
-## many runs on Longleaf
+## many runs: loop (any computer)
+while read -r a; do prefetch "$a" --max-size u -O sra && fasterq-dump "sra/$a" -e 4 -t tmp -O fastq && pigz fastq/"$a"*.fastq && rm -rf "sra/$a"; done < SRR_Acc_List.txt
+
+## many runs: SLURM array job
 mkdir -p logs
 sbatch --array=1-$(grep -c . SRR_Acc_List.txt)%4 scripts/download_sra.sh SRR_Acc_List.txt fastq
 
