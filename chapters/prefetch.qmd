@@ -1,0 +1,99 @@
+# Downloading with prefetch {#sec-prefetch}
+
+`prefetch` downloads the `.sra` file for a run from NCBI (or from a cloud
+copy) to your disk. It isn't strictly required: `fasterq-dump` can stream
+directly from NCBI. But downloading first is **much more reliable** for anything
+bigger than a test: an interrupted download can resume, you can check the file,
+and conversion then needs less temporary space.
+
+## One run
+
+```bash
+cd /work/users/j/d/jdoe/airway
+prefetch SRR1039508
+```
+
+```
+2026-11-24T12:00:00 prefetch.3.x: 1) Downloading 'SRR1039508'...
+2026-11-24T12:00:00 prefetch.3.x:  Downloading via HTTPS...
+2026-11-24T12:03:10 prefetch.3.x:  HTTPS download succeed
+2026-11-24T12:03:12 prefetch.3.x:  'SRR1039508' is valid
+2026-11-24T12:03:12 prefetch.3.x: 1) 'SRR1039508' was downloaded successfully
+```
+
+(Times and version are illustrative.) The result is a **folder named after
+the run** with the `.sra` file inside:
+
+```
+SRR1039508/
+└── SRR1039508.sra       (or SRR1039508.sralite)
+```
+
+## Options you'll use
+
+| Option | What it does |
+|---|---|
+| `-O <dir>` / `--output-directory <dir>` | Put the run folder inside `<dir>` instead of here |
+| `-X <size>` / `--max-size <size>` | Size limit. **The default is 20 GB**: bigger runs are skipped with a message. Units `k`, `m`, `g`, `t`, or `u` for unlimited: `--max-size u` |
+| `-p` / `--progress` | Show a progress bar |
+| `--option-file <file>` | Read accessions from a file, one per line |
+| `-f yes` / `--force yes` | Download again even if a copy exists |
+
+```bash
+prefetch SRR1039508 -O sra --max-size u -p     # into ./sra/SRR1039508/
+```
+
+## Several runs
+
+```bash
+prefetch --option-file SRR_Acc_List.txt -O sra --max-size u
+## or, equivalently
+prefetch $(cat SRR_Acc_List.txt) -O sra --max-size u
+```
+
+This downloads one after another. For many runs, split them into an
+array job instead ([At scale](at-scale.qmd)).
+
+## How big is it, before I download?
+
+```bash
+vdb-dump --info SRR1039508      # includes the size
+```
+
+Or use the `Bytes` column of `SraRunTable.csv`.
+
+## Check the download: vdb-validate
+
+`prefetch` checks the file as it finishes (the "is valid" line), but it's
+worth checking again before you spend time converting, especially after a
+download that was interrupted and resumed:
+
+```bash
+vdb-validate sra/SRR1039508
+```
+
+It checks every internal checksum and prints `... is consistent` lines; any
+`error` or `corrupt` message means delete the folder and `prefetch` again.
+
+::: {.callout-note}
+## If a download is interrupted
+
+Run the same `prefetch` command again. It resumes where it stopped and
+skips runs that are already complete.
+:::
+
+::: {.callout-tip}
+## Check your understanding
+
+1. `prefetch` prints "... is larger than maximum allowed: skipped". What do
+   you add?
+2. Why `cd` into `/work` before running `prefetch` on Longleaf?
+
+::: {.callout-note collapse="true" appearance="simple"}
+## Answers
+
+1. `--max-size u` (or a size larger than the run, e.g. `--max-size 100g`).
+2. With `--prefetch-to-cwd`, files go to the current folder. `/work` has the
+   space; your home doesn't.
+:::
+:::

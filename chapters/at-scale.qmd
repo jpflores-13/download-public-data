@@ -1,0 +1,76 @@
+# Downloading many runs on Longleaf {#sec-at-scale}
+
+For more than a handful of runs, use a **SLURM array job**: one script,
+run once per accession, with SLURM handing each copy a different line of
+your accession list. The repository's
+[`scripts/download_sra.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/download_sra.sh)
+does this.
+
+## What the script does, per run
+
+```{mermaid}
+flowchart LR
+  A["line N of<br/>SRR_Acc_List.txt"] --> B["prefetch<br/>--max-size u"] --> C["vdb-validate"] --> D["fasterq-dump<br/>--threads 6 --temp ..."] --> E["pigz"] --> F["count reads →<br/>read_counts.tsv"] --> G["delete .sra<br/>and temp"]
+```
+
+It skips runs that already have a `.fastq.gz`, so if some tasks fail you
+can resubmit the whole array and only the missing ones run.
+
+## Running it
+
+```bash
+cd /work/users/j/d/jdoe
+git clone https://github.com/jpflores-13/download-public-data.git
+mkdir -p airway && cd airway
+cp ../download-public-data/examples/airway_SRR_Acc_List.txt SRR_Acc_List.txt   # or your own list
+
+mkdir -p logs
+N=$(grep -c . SRR_Acc_List.txt)          # number of non-empty lines
+sbatch --array=1-${N}%4 ../download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
+```
+
+- `--array=1-8` runs tasks 1 to 8; the **`%4`** means at most four at once.
+  Keep this low (2–6). Many simultaneous downloads don't go faster, they
+  overload the shared filesystem, and NCBI may throttle you.
+- Arguments: the accession list, and the output folder.
+- `logs/` must exist before submitting; SLURM won't create it.
+
+::: {.callout-note}
+## Module names
+
+The script runs `module load sratoolkit` and tries `module load pigz`. If
+Longleaf's module is named differently (`module avail sra`), edit that line.
+If you use conda instead, replace it with `source activate sra` (or
+`conda activate sra`).
+:::
+
+## Watching it
+
+```bash
+squeue -u $USER                                   # tasks show as JOBID_1, JOBID_2, ...
+tail logs/sra_download-<JOBID>_3.out              # one task's log
+grep -l -i error logs/*.err                       # any task with errors
+sacct -j <JOBID> --format=JobID,State,Elapsed,MaxRSS
+cat fastq/read_counts.tsv                         # filled in as tasks finish
+```
+
+## Resources
+
+The script asks for 6 CPUs, 8 GB memory and 12 hours per run. That's plenty
+for typical bulk RNA-seq (20–50 M pairs). For very large runs (> 50 GB `.sra`),
+raise `-t` and make sure `/work` has the space
+([fasterq-dump](fasterq-dump.qmd#disk-space)).
+
+## Without SLURM (a laptop, a workstation)
+
+The same steps in a loop:
+
+```bash
+while read -r acc; do
+  prefetch "$acc" --max-size u -O sra
+  vdb-validate "sra/$acc"
+  fasterq-dump "sra/$acc" --threads 4 --temp tmp --outdir fastq
+  pigz -p 4 fastq/"$acc"*.fastq
+  rm -rf "sra/$acc"
+done < SRR_Acc_List.txt
+```

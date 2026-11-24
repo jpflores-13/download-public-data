@@ -1,0 +1,36 @@
+# Cheat sheet {#sec-cheatsheet}
+
+```bash
+## setup (once)
+module load sratoolkit                # or: conda create -n sra -c conda-forge -c bioconda sra-tools pigz
+vdb-config --prefetch-to-cwd          # downloads go to the current folder
+vdb-config -i                         # interactive: SRA Lite vs Normalized, locations
+fastq-dump --stdout -X 2 SRR390728    # test
+
+## metadata
+## Run Selector: https://www.ncbi.nlm.nih.gov/Traces/study/?acc=<GSE or PRJNA>
+curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=<ACC>&result=read_run&fields=run_accession,sample_title,library_layout,read_count,fastq_ftp,fastq_md5&format=tsv"
+esearch -db sra -query <PRJNA> | efetch -format runinfo > runinfo.csv
+
+## one run
+prefetch SRR... --max-size u -O sra
+vdb-validate sra/SRR...
+fasterq-dump sra/SRR... --threads 6 --temp tmp --outdir fastq
+pigz -p 6 fastq/SRR...*.fastq
+
+## many runs on Longleaf
+mkdir -p logs
+sbatch --array=1-$(grep -c . SRR_Acc_List.txt)%4 scripts/download_sra.sh SRR_Acc_List.txt fastq
+
+## from ENA instead
+bash scripts/ena_download.sh <ACC> fastq
+
+## check and organise
+for f in fastq/*.fastq.gz; do gzip -t "$f" || echo "BROKEN $f"; done
+cat fastq/read_counts.tsv
+bash scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+
+## quick peek without downloading everything
+fastq-dump -X 1000 --split-3 SRR...      # first 1000 spots
+vdb-dump --info SRR...                   # size and details
+```

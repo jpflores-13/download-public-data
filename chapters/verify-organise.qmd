@@ -1,0 +1,89 @@
+# Checking and organising what you downloaded {#sec-verify-organise}
+
+A download that finished isn't necessarily complete or correct. Before
+running a pipeline, check the files, combine runs that belong to the same
+sample, and give them names that mean something.
+
+## 1. Are the files complete?
+
+```bash
+ls -lh fastq/                                    # any suspiciously small files?
+for f in fastq/*.fastq.gz; do gzip -t "$f" || echo "BROKEN: $f"; done
+```
+
+`gzip -t` reads the whole file and complains if it's truncated.
+
+## 2. Do the read counts match the archive?
+
+The download script writes `fastq/read_counts.tsv`. Compare it with the
+**spots** for each run in `SraRunTable.csv`, or with `read_count` from ENA:
+
+```bash
+cat fastq/read_counts.tsv
+# SRR1039508_1.fastq.gz   22935521
+# SRR1039508_2.fastq.gz   22935521
+```
+
+For paired data, `_1` and `_2` must have the **same** count, and it should
+equal the archive's spot count (minus any orphan reads in `SRR....fastq.gz`).
+
+## 3. Do the reads look like what you expect?
+
+```bash
+zcat fastq/SRR1039508_1.fastq.gz | head -8                      # read names, length, quality
+zcat fastq/SRR1039508_1.fastq.gz | head -400000 | awk 'NR%4==2{print length($0)}' | sort -n | uniq -c   # read lengths
+```
+
+Running **FastQC** (or `seqkit stats`) on all files gives a quick overview.
+If the quality plot is a flat line at 30, you have SRA Lite data
+([The databases](databases.qmd#whats-in-an-.sra-file)).
+
+## 4. One sample, many runs {#one-sample-many-runs}
+
+If a biological sample was sequenced on several lanes or flow cells, it has
+several `SRR`s. Pipelines such as bagPipes expect **one pair of files per
+sample**, so concatenate runs **R1 with R1 and R2 with R2, in the same order**.
+Concatenated `.gz` files are valid `.gz` files, so there's no need to decompress:
+
+```bash
+cat SRR111_1.fastq.gz SRR112_1.fastq.gz > sampleA_R1_001.fastq.gz
+cat SRR111_2.fastq.gz SRR112_2.fastq.gz > sampleA_R2_001.fastq.gz
+```
+
+[`scripts/merge_runs.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/merge_runs.sh)
+does this from a two-column table (`run`, `sample`) that you make from
+`SraRunTable.csv`:
+
+```bash
+bash scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+```
+
+It also renames the files in the Illumina style (`<sample>_R1_001.fastq.gz`),
+which is what bagPipes' samplesheet examples look like.
+
+::: {.callout-warning}
+## Don't merge different libraries without thinking
+
+Runs of **one library** (same SRX) are safe to merge. Two **different
+libraries** from the same sample (two SRXs) are technical replicates. Merging
+them is often fine, but check they're the same library type and read length.
+Runs from **different biological samples** must never be merged.
+:::
+
+## 5. Make the samplesheet
+
+Build the metadata table (condition, replicate) from `SraRunTable.csv`, not
+from memory. See the [worked example](worked-example.qmd) for a bagPipes
+samplesheet.
+
+## 6. Keep a record
+
+Next to the FASTQs, keep:
+
+- `SraRunTable.csv` (and/or the ENA TSV),
+- `SRR_Acc_List.txt` and `runs_to_samples.tsv`,
+- `read_counts.tsv`,
+- the toolkit version (`fasterq-dump --version > sra_tools_version.txt`),
+- a `README` with the paper, the GEO accession and the date you downloaded.
+
+Then copy everything to `/proj`, because `/work` is purged.

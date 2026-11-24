@@ -1,0 +1,93 @@
+# The databases: GEO, SRA, ENA and friends {#sec-databases}
+
+Several databases are involved, and papers name whichever one the authors
+submitted to. Knowing what each one holds saves a lot of clicking around.
+
+## Who holds what
+
+| Database | Run by | Holds | You go there for |
+|---|---|---|---|
+| **GEO** (Gene Expression Omnibus) | NCBI (USA) | Experiment descriptions, sample metadata, **processed** files (count tables, bigWigs, peaks) | The sample list and the authors' processed results |
+| **SRA** (Sequence Read Archive) | NCBI (USA) | **Raw reads**, stored in NCBI's own `.sra` format | The raw data, through the SRA Toolkit |
+| **ENA** (European Nucleotide Archive) | EMBL-EBI (UK) | Raw reads, also offered as ready-made **`.fastq.gz`** | The same raw data, without the SRA Toolkit |
+| **DDBJ** | Japan | Raw reads | Rarely needed directly |
+| **BioProject** / **BioSample** | NCBI | The project and sample records that tie everything together | Cross-referencing |
+| **dbGaP** / **EGA** | NCBI / EBI | **Controlled-access** human data (patients) | Needs an approved application ([Special cases](special-cases.qmd)) |
+
+SRA, ENA and DDBJ are the three members of the **INSDC** (International
+Nucleotide Sequence Database Collaboration) and **mirror each other**: a run
+submitted to any one appears in all three, usually within days. So an `SRR`
+accession from NCBI can be downloaded from ENA, and an `ERR` from ENA can be
+downloaded with the SRA Toolkit.
+
+## How GEO and SRA fit together
+
+When authors submit sequencing data to GEO, GEO keeps the description and
+the processed files, and **passes the raw reads to SRA**. A GEO sample page
+(GSM) has a link to its SRA records at the bottom.
+
+```{mermaid}
+flowchart TD
+  GSE["GEO Series GSE52778<br/>(the experiment)"] --> GSM1["GEO Sample GSM1275862<br/>N61311_untreated"]
+  GSE --> GSM2["GEO Sample GSM1275863<br/>N61311_Dex"]
+  GSE -.processed files.-> SUP["GSE52778_RAW.tar,<br/>count tables, ..."]
+  GSM1 --> SRX1["SRA Experiment SRX384345<br/>(library + sequencing details)"]
+  SRX1 --> SRR1["SRA Run SRR1039508<br/>(the reads)"]
+  GSM2 --> SRX2["SRX384346"] --> SRR2["SRR1039509"]
+```
+
+## Processed or raw: which do you need?
+
+Before you download terabytes, check what you need:
+
+| You want to... | Download |
+|---|---|
+| Look at the authors' signal in a browser, or re-plot their result | **GEO supplementary files** (bigWigs, count tables). No toolkit needed: these are plain HTTPS links on the GSE page |
+| Compare their data with yours, processed the **same** way | **Raw reads** from SRA/ENA, run through your pipeline |
+| Use a newer genome build or annotation | Raw reads |
+| Check their QC | Raw reads |
+
+For comparing to your own data, raw reads processed with your own pipeline
+are almost always the right choice. Differences in aligners, annotations and
+normalisation between labs can be larger than the biology you want to compare.
+
+## What's in an `.sra` file?
+
+SRA doesn't store FASTQ. It stores each run in its own compressed,
+column-based format (`.sra`). The **SRA Toolkit** converts it back to FASTQ.
+SRA offers two versions of most runs:
+
+| Format | Extension | Quality scores | Size |
+|---|---|---|---|
+| **SRA Normalized** | `.sra` | The original per-base qualities | Larger |
+| **SRA Lite** | `.sralite` | **Simplified**: every base gets the same quality: 30 if the read passed filter, 3 if it was rejected | About 60 % smaller |
+
+Which one you get depends on what exists for that run and on a toolkit
+setting ([Setup](setup.qmd#sra-lite-or-normalized)); some older runs exist
+only in one form.
+For counting genes or calling peaks, Lite is usually fine. For anything that
+uses base qualities (variant calling, careful quality trimming, judging
+sequencing quality with FastQC), you want Normalized. With Lite data, FastQC's
+quality plot is a flat line at 30. That's a sign of the format, not a
+perfect run.
+
+::: {.callout-tip}
+## Check your understanding
+
+1. A paper says "data are available at ENA under PRJEB12345". Can you use
+   `prefetch` to get them?
+2. You only want to show the authors' ChIP signal next to yours in IGV. Do you
+   need the SRA Toolkit?
+3. Your downloaded FASTQ's quality line is `?????????...` for every read.
+   Why?
+
+::: {.callout-note collapse="true" appearance="simple"}
+## Answers
+
+1. Yes. The INSDC databases mirror each other, so the runs (`ERR...`) are also
+   available through SRA. Or download `.fastq.gz` from ENA directly.
+2. Probably not: check the GEO supplementary files for bigWigs. Only if you
+   want to reprocess them identically to yours do you need the raw reads.
+3. `?` is Q30 in Phred+33. You got SRA Lite data with simplified quality scores.
+:::
+:::

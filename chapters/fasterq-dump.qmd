@@ -1,0 +1,135 @@
+# Converting to FASTQ with fasterq-dump {#sec-fasterq-dump}
+
+`fasterq-dump` reads an `.sra` file (or streams the run from NCBI) and writes
+FASTQ. It replaced the older, single-threaded `fastq-dump`. It is **much**
+faster, but it behaves differently, and a few of those differences catch people out.
+
+## The basic command
+
+```bash
+fasterq-dump sra/SRR1039508 --threads 6 --temp tmp --outdir fastq --progress
+```
+
+| Option | Short | Default | What it does |
+|---|---|---|---|
+| `--threads <n>` | `-e` | 6 | CPU threads. Match it to the CPUs you asked SLURM for |
+| `--temp <dir>` | `-t` | current folder | Where to put **temporary files** (a lot of them; see below) |
+| `--outdir <dir>` | `-O` | current folder | Where to write the FASTQ |
+| `--progress` | `-p` | off | Progress bar (leave off in batch jobs: it fills the log) |
+| `--force` | `-f` | off | Overwrite existing output |
+| `--split-3` | `-3` | **on (the default)** | See below |
+| `--split-files` | `-S` | | Every read of a spot to its own file, including unpaired |
+| `--split-spot` | `-s` | | Both reads of a pair as consecutive records in **one** file |
+| `--concatenate-reads` | | | Join read 1 and read 2 into one long read |
+| `--include-technical` | | off | Also write technical reads (barcodes, UMIs; needed for some single-cell data) |
+| `--size-check on\|off\|only` | | on | Check there's enough disk space before starting |
+| `--disk-limit`, `--disk-limit-tmp` | | | Stop if output/temp would exceed a size (useful when quotas hide the real free space) |
+
+You can give it either the **folder from `prefetch`** (`sra/SRR1039508`) or a
+bare accession (`SRR1039508`). With a bare accession, if there's no local copy, it
+streams from NCBI: fine for small runs, slower and more fragile for large ones.
+
+## What files you get: split-3
+
+For each **spot** (one cluster on the flow cell), the default `--split-3`
+mode does:
+
+| Spot has... | Goes to |
+|---|---|
+| Two reads (read 1 + read 2) | `SRR1039508_1.fastq` and `SRR1039508_2.fastq`, in matching order |
+| Only one read (the other was removed by the submitter's filtering) | `SRR1039508.fastq` |
+
+So **paired-end** data normally gives `_1` and `_2`, sometimes plus a small
+`SRR...fastq` of orphan reads. **Single-end** data gives one `SRR....fastq`.
+For a paired-end pipeline use `_1` and `_2` and set the orphans aside. Check
+first that the orphan file is small; if it's most of the data, the run may not
+really be paired (see [Special cases](special-cases.qmd)).
+
+::: {.callout-important}
+## The output is not compressed
+
+There's no `--gzip` option in `fasterq-dump`. Compress afterwards:
+
+```bash
+pigz -p 6 fastq/SRR1039508*.fastq      # parallel gzip; or plain `gzip`
+```
+
+Until you do, the files are 3–5× bigger than they need to be.
+:::
+
+## Disk space {#disk-space}
+
+This is where most failures come from. `fasterq-dump` writes large
+temporary files and then the (uncompressed) FASTQ. NCBI's own guidance:
+
+- the **final FASTQ** is roughly **7×** the size of the `.sra`,
+- **temporary space** is roughly **1.5×** the final FASTQ again,
+- so in total, plan for **~10–20× the `.sra` size** free while it runs.
+
+For a 2.5 GB airway run that's tens of GB. Point `--temp` at a filesystem with
+room. On Longleaf that's your `/work` folder, not `/tmp` on a node, which may
+be small. Temp files are deleted at the end. If a job is killed they may be
+left behind as `fasterq.tmp.*`; delete them.
+
+```bash
+df -h .                  # free space here
+du -sh sra/SRR1039508    # size of the .sra
+```
+
+## Read names
+
+By default reads are named `@<accession>.<spot number> <spot number> length=<n>`:
+
+```
+@SRR1039508.1 1 length=63
+CATTGCTGATACCACAGATGAATCCCTTCTAGAAAACAGAGTACTGGATGCAGCCCTTCACAG
++SRR1039508.1 1 length=63
+HJJJJJJJJJJJJJJJJJJJJIJJJJJJJJJJJJJJJJJIJJJJJJJJJJIJJJJJJJJJJJJ
+```
+
+(Example read.) The original Illumina names are usually **not** kept. That doesn't
+matter for pipelines. If a tool insists on a particular format,
+`--seq-defline` and `--qual-defline` set a custom name (for example
+`--seq-defline '@$ac.$si/$ri'` adds `/1` or `/2`).
+
+## fasterq-dump vs the old fastq-dump
+
+You'll see `fastq-dump` in older tutorials:
+
+```bash
+fastq-dump --split-3 --gzip SRR1039508          # old: one thread, slow, but can gzip
+fasterq-dump SRR1039508                          # new: same split by default, many threads, no gzip
+```
+
+| | fastq-dump | fasterq-dump |
+|---|---|---|
+| Speed | slow (one thread) | fast (multi-threaded) |
+| Default split | none (one file!) | `--split-3` |
+| Gzip output | `--gzip` | no; compress afterwards |
+| Subset of reads (`-X`, `-N`) | yes | no |
+| Temp space | little | a lot |
+
+`fastq-dump -X 1000 --split-3 SRR...` is still handy to grab the **first 1,000
+spots** for a quick look without downloading everything.
+
+::: {.callout-tip}
+## Check your understanding
+
+1. You run `fasterq-dump` on a paired-end run and get three files. What's the
+   third, and should you use it?
+2. A 10 GB `.sra` fails with "disk-limit exceeded". Roughly how much free space
+   do you need?
+3. Why ask SLURM for `-c 6` when running `fasterq-dump --threads 6`?
+
+::: {.callout-note collapse="true" appearance="simple"}
+## Answers
+
+1. `SRR....fastq`: reads whose mate is missing. For a paired-end pipeline, use
+   only `_1` and `_2`; keep the third only if it holds a large fraction of reads
+   (then investigate).
+2. Something like 100–200 GB between output and temp, then far less once
+   compressed.
+3. So the six threads have six CPUs to run on; otherwise they compete for
+   one, and it's no faster.
+:::
+:::

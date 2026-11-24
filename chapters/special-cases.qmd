@@ -1,0 +1,61 @@
+# Special cases {#sec-special-cases}
+
+## Single-cell data (10x Genomics)
+
+In 10x data, read 1 holds the **cell barcode + UMI** and read 2 the cDNA.
+SRA often marks the barcode read as **technical**, and `fasterq-dump`
+**skips technical reads by default**, so you get only one file. Use:
+
+```bash
+fasterq-dump sra/SRR... --split-files --include-technical --threads 8 --temp tmp -O fastq
+```
+
+You'll get `_1`, `_2` (and sometimes `_3`, `_4` for index reads). Check the read
+lengths to tell which is which (e.g. 28 bp = barcode+UMI for 10x v3). Many 10x
+submissions also include the **original files** (BAM or FASTQ) as uploaded,
+which tools like Cell Ranger accept directly. Those are listed under *Data
+access* on the run's page in the SRA Run Browser.
+
+## Data uploaded as BAM
+
+Some submitters uploaded aligned BAMs instead of FASTQ. `fasterq-dump` still
+produces FASTQ from them. If the BAM contained only aligned reads, unaligned
+reads may be missing; the original BAM may be downloadable from the run's
+*Data access* tab.
+
+## "Paired" runs that come out as one file
+
+If `LibraryLayout` says `PAIRED` but you get one file, or a huge `SRR....fastq`
+and tiny `_1`/`_2`:
+
+- The submitter may have uploaded the two reads **concatenated** or
+  **interleaved**. Check read lengths: one length that's double the
+  expected read length means concatenated reads. Split them with
+  `seqkit subseq` or `awk`, or check the ENA files.
+- The run may really be single-end, mislabelled.
+
+## Very large runs
+
+- `prefetch --max-size u`.
+- Give `--temp` a filesystem with hundreds of GB.
+- Consider ENA instead, which needs no temp space.
+
+## Controlled-access (dbGaP) data
+
+Human data from patients is often behind **dbGaP**. You need an approved
+Data Access Request first. dbGaP then gives you a repository key (`.ngc`)
+file, which you pass to the toolkit:
+
+```bash
+prefetch --ngc prj_12345.ngc SRR...
+fasterq-dump --ngc prj_12345.ngc sra/SRR...
+```
+
+Treat controlled data according to your approval terms (storage location,
+no sharing, deletion at the end of the project). Ask UNC Research Computing
+where such data may be stored.
+
+## Data only in GEO (no SRA)
+
+Older microarray studies, or some processed-only submissions, have no raw
+reads. Then the GEO supplementary files are all there is.

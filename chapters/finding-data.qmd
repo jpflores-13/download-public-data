@@ -1,0 +1,103 @@
+# Finding the data and the metadata {#sec-finding-data}
+
+You need two things before downloading: the **list of run accessions**,
+and a **table saying what each run is** (sample, condition, replicate,
+single- or paired-end). This chapter shows three ways to get both: by
+clicking, from ENA, and from the command line.
+
+## Step 0: find the accession in the paper
+
+Look in the **Data availability** statement, the Methods, or the last
+lines of the abstract. You're looking for a `GSE`, `PRJNA`/`PRJEB`, `SRP`,
+or `E-MTAB` (ArrayExpress, now BioStudies) number. If only an `E-MTAB` is given,
+its raw reads are in ENA, under an `ERP`/`PRJEB` linked from the BioStudies page.
+
+## Option A: GEO + SRA Run Selector (point and click)
+
+1. **Open the GEO series**, e.g.
+   [GSE52778](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE52778).
+   Read the summary and the overall design, and scroll down to **Samples**,
+   one GSM per biological sample. The supplementary files are at the very
+   bottom.
+2. **Open the SRA Run Selector**. At the bottom of the GSE page, in the
+   *Relations* box, follow **SRA**, then *Send to → Run Selector*. Or go
+   straight to `https://www.ncbi.nlm.nih.gov/Traces/study/?acc=GSE52778`.
+3. In Run Selector, the table has **one row per run** with the metadata as
+   columns. Tick rows to select a subset (e.g. only untreated and Dex), or
+   use all.
+4. Download two files with the buttons in the *Select* box:
+   - **Accession List** → `SRR_Acc_List.txt`: one run per line. This is the
+     input to the download scripts.
+   - **Metadata** → `SraRunTable.csv` (older downloads: `.txt`): the full
+     table.
+
+### Columns of SraRunTable worth knowing
+
+| Column | Why it matters |
+|---|---|
+| `Run` | The accession to download |
+| `BioSample`, `Sample Name` / `GEO_Accession (exp)` | Which biological sample the run belongs to. **Several runs can share one** |
+| `Experiment` | The library (SRX) |
+| `LibraryLayout` | `PAIRED` or `SINGLE`: what files to expect |
+| `LibrarySelection`, `LibrarySource`, `LibraryStrategy` | e.g. `cDNA`, `TRANSCRIPTOMIC`, `RNA-Seq`; confirms you have the right assay |
+| `AvgSpotLen` | Average spot length: **read 1 + read 2** for paired data (126 = 2×63) |
+| `Bases`, `Bytes` | Size: use `Bytes` to plan disk space ([fasterq-dump](fasterq-dump.qmd#disk-space)) |
+| `Instrument` | e.g. `Illumina HiSeq 2000` |
+| author columns (`treatment`, `cell_line`, `source_name`, ...) | The biology, as the submitters described it. Names vary between datasets |
+
+::: {.callout-tip}
+**Save `SraRunTable.csv` with your data.** It is the record of what each
+file is, and you'll build your samplesheet from it.
+:::
+
+## Option B: ENA (also gives direct FASTQ links)
+
+Search the accession at [ebi.ac.uk/ena/browser](https://www.ebi.ac.uk/ena/browser/view/PRJNA229998).
+The *Read Files* table lists every run with **direct `.fastq.gz` links and
+MD5 checksums**. *Show Column Selection* adds fields such as `sample_title`;
+*TSV* downloads the table. The same table is available from the ENA
+**portal API**, which is easy to script:
+
+```bash
+curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=SRP033351&result=read_run&fields=run_accession,sample_title,library_layout,read_count,fastq_ftp,fastq_md5,fastq_bytes&format=tsv" \
+  > SRP033351_ena.tsv
+column -t -s $'\t' SRP033351_ena.tsv | cut -c1-120 | head
+```
+
+```
+run_accession  sample_title       library_layout  read_count  fastq_ftp ...
+SRR1039508     N61311_untreated   PAIRED          22935521    ftp.sra.ebi.ac.uk/vol1/fastq/SRR103/008/SRR1039508/SRR1039508_1.fastq.gz;...
+SRR1039509     N61311_Dex         PAIRED          21155707    ...
+```
+
+See [Downloading from ENA](ena.qmd) to get the FASTQs this way.
+
+## Option C: the command line
+
+**Entrez Direct** (NCBI's command-line tools; `module avail edirect` or
+install from NCBI) gives the same run table as Run Selector:
+
+```bash
+esearch -db sra -query PRJNA229998 | efetch -format runinfo > runinfo.csv
+cut -d, -f1 runinfo.csv | grep -E '^[SED]RR' > SRR_Acc_List.txt
+```
+
+**pysradb** (a Python package, `pip install pysradb`) converts between
+accession types and fetches metadata:
+
+```bash
+pysradb gse-to-srp GSE52778
+pysradb metadata SRP033351 --detailed > SRP033351_metadata.tsv
+```
+
+## A checklist before downloading
+
+- [ ] The assay is what you expect (`LibraryStrategy`, the GEO design).
+- [ ] You know which runs belong to which biological sample.
+- [ ] You know if it's paired or single-end (`LibraryLayout`).
+- [ ] You know the read length (`AvgSpotLen`, halved for paired).
+- [ ] If the paper says, note the library kit / strandedness (often only in
+      the GEO *Extraction protocol* or *Library construction* fields).
+- [ ] You've added up `Bytes` and have **10–20×** that free on `/work`
+      for the conversion step.
+- [ ] The data are open access (not dbGaP/EGA).

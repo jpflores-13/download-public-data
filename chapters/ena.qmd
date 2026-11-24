@@ -1,0 +1,63 @@
+# Downloading from ENA instead {#sec-ena}
+
+Because ENA mirrors SRA ([The databases](databases.qmd)), most runs are also
+available from ENA as ready-made, gzipped FASTQ files **with MD5 checksums**.
+No SRA Toolkit, no conversion, no temporary space. It's often the simplest
+option.
+
+| | SRA Toolkit | ENA |
+|---|---|---|
+| Software | prefetch + fasterq-dump | `wget` / `curl` |
+| Temp space | 10–20× the `.sra` | none |
+| Output | uncompressed FASTQ, needs gzip | `.fastq.gz` |
+| Checksums | `vdb-validate` | MD5 per file |
+| Read names | `SRR....N` | `SRR....N` (similar) |
+| Availability | every SRA run | most runs; a few very new or unusual ones lack FASTQ |
+
+## Step by step
+
+1. Get the file list:
+
+   ```bash
+   curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=SRR1039508&result=read_run&fields=run_accession,fastq_ftp,fastq_md5,fastq_bytes&format=tsv"
+   ```
+
+   ```
+   run_accession  fastq_ftp                                                           fastq_md5          fastq_bytes
+   SRR1039508     ftp.sra.ebi.ac.uk/vol1/fastq/SRR103/008/SRR1039508/SRR1039508_1.fastq.gz;ftp.sra.ebi.ac.uk/vol1/fastq/SRR103/008/SRR1039508/SRR1039508_2.fastq.gz   <md5_1>;<md5_2>   1243786980;1230997455
+   ```
+
+   `fastq_ftp` and `fastq_md5` hold one entry per file, separated by `;`.
+   The `accession` can be a run, a sample, an experiment or a whole project
+   (`PRJNA229998`, `SRP033351`).
+
+2. Download (the links work over HTTPS or FTP):
+
+   ```bash
+   wget -c https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR103/008/SRR1039508/SRR1039508_1.fastq.gz
+   ```
+
+   `-c` resumes an interrupted download.
+
+3. Check against the MD5s:
+
+   ```bash
+   echo "<md5_1>  SRR1039508_1.fastq.gz" | md5sum -c
+   ```
+
+[`scripts/ena_download.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/ena_download.sh)
+does all three for every run of an accession:
+
+```bash
+bash scripts/ena_download.sh PRJNA229998 fastq
+```
+
+It downloads **every** file ENA lists for that accession (including orphan-read
+files), so for a subset, run it per run accession, e.g. in a loop over
+`SRR_Acc_List.txt`.
+
+::: {.callout-note}
+For very large downloads, ENA also supports Aspera and the
+[ENA File Downloader](https://github.com/enasequence/enaBrowserTools)
+tools, which are faster than `wget` over long distances.
+:::

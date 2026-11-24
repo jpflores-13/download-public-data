@@ -1,0 +1,110 @@
+# Worked example: airway, from GEO to bagPipes {#sec-worked-example}
+
+This chapter goes from the paper to a running `RNApipe` on eight samples of
+the airway dataset (four donors, untreated or dexamethasone). Budget roughly
+**250 GB** of `/work` while converting (it shrinks to about 20 GB of
+`.fastq.gz`) and a few hours of wall time.
+
+## 1. Find the runs
+
+The paper (Himes *et al.* 2014) points to **GSE52778**. Its 16 samples are
+four donors × four treatments (untreated, dexamethasone, albuterol, both). We
+want untreated and Dex only. From Run Selector
+(`https://www.ncbi.nlm.nih.gov/Traces/study/?acc=GSE52778`), or ENA:
+
+| Run | GSM | sample_title | Donor | Treatment |
+|---|---|---|---|---|
+| SRR1039508 | GSM1275862 | N61311_untreated | N61311 | untrt |
+| SRR1039509 | GSM1275863 | N61311_Dex | N61311 | dex |
+| SRR1039512 | GSM1275866 | N052611_untreated | N052611 | untrt |
+| SRR1039513 | GSM1275867 | N052611_Dex | N052611 | dex |
+| SRR1039516 | GSM1275870 | N080611_untreated | N080611 | untrt |
+| SRR1039517 | GSM1275871 | N080611_Dex | N080611 | dex |
+| SRR1039520 | GSM1275874 | N061011_untreated | N061011 | untrt |
+| SRR1039521 | GSM1275875 | N061011_Dex | N061011 | dex |
+
+Each GSM has exactly one run, all `PAIRED`, 2 × 63 bp. The two files in this
+repository's `examples/` folder hold exactly this:
+
+- `examples/airway_SRR_Acc_List.txt`: the eight runs
+- `examples/airway_runs_to_samples.tsv`: run → sample name
+
+## 2. Download
+
+```bash
+cd /work/users/j/d/jdoe
+git clone https://github.com/jpflores-13/download-public-data.git
+mkdir -p airway/logs && cd airway
+cp ../download-public-data/examples/airway_* .
+
+sbatch --array=1-8%4 ../download-public-data/scripts/download_sra.sh airway_SRR_Acc_List.txt fastq
+```
+
+When all tasks finish:
+
+```bash
+ls fastq/
+cat fastq/read_counts.tsv | sort
+```
+
+A few airway runs also produce an orphan-read file (`SRR....fastq.gz`) next
+to `_1` and `_2`. That's expected ([split-3](fasterq-dump.qmd#what-files-you-get-split-3)).
+Check it's small compared with `_1`.
+
+## 3. Merge and rename
+
+Here there's one run per sample, so this is just a rename, but the same
+command handles multi-run samples:
+
+```bash
+bash ../download-public-data/scripts/merge_runs.sh airway_runs_to_samples.tsv fastq merged
+ls merged/
+# N052611_dex_R1_001.fastq.gz  N052611_dex_R2_001.fastq.gz  N052611_untrt_R1_001.fastq.gz ...
+```
+
+## 4. Write a bagPipes samplesheet
+
+bagPipes needs `Read1`, `Read2` and `Sequencing_Directory`, plus whatever
+metadata columns your `fileNamesFrom` and `mergeBy` use. Build it from the
+run table:
+
+```bash
+DIR=$PWD/merged/
+{
+  printf "Project\tCell_Type\tDonor\tTreatment\tBio_Rep\tRead1\tRead2\tSequencing_Directory\n"
+  tail -n +2 airway_runs_to_samples.tsv | while IFS=$'\t' read -r run sample; do
+    donor=${sample%_*}; trt=${sample#*_}
+    printf "airway\tASM\t%s\t%s\t1\t%s_R1_001.fastq.gz\t%s_R2_001.fastq.gz\t%s\n" \
+      "$donor" "$trt" "$sample" "$sample" "$DIR"
+  done
+} > RNAsamplesheet.txt
+column -t RNAsamplesheet.txt
+```
+
+And in `config/RNAconfig.yaml`:
+
+```yaml
+samplesheet: '/work/users/j/d/jdoe/airway/RNAsamplesheet.txt'
+fileNamesFrom: ['Project', 'Cell_Type', 'Donor', 'Treatment']
+mergeBy: ['Project', 'Cell_Type', 'Treatment']    # one merged track per treatment
+```
+
+Choose the hg38 reference block, and check the library type after the first run
+(Salmon's `lib_format_counts.json`). If it is `IU`, the library is unstranded:
+set `stranded: False`. Then `sbatch RNApipe.sh`, as in
+[omics-walkthru: Running RNApipe](https://jpflores-13.github.io/omics-walkthru/rna-seq/running-rnapipe.html).
+
+::: {.callout-tip}
+## In DESeq2
+
+Donors differ a lot from each other, so include donor in the design to compare
+treatments *within* donors: `design = ~ Donor + Treatment`.
+:::
+
+## 5. Keep the record
+
+```bash
+fasterq-dump --version > sra_tools_version.txt
+mkdir -p /proj/<lab>/public_data/GSE52778
+rsync -av merged/ airway_* fastq/read_counts.tsv sra_tools_version.txt /proj/<lab>/public_data/GSE52778/
+```

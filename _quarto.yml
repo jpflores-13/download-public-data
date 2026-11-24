@@ -1,0 +1,56 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "download-public-data"
+  subtitle: "Getting raw sequencing data out of GEO, SRA and ENA with the SRA Toolkit (prefetch + fasterq-dump)"
+  author: "JP Flores"
+  date: today
+  repo-url: https://github.com/jpflores-13/download-public-data
+  repo-actions: [edit, issue]
+  site-url: https://jpflores-13.github.io/download-public-data
+  page-navigation: true
+
+  chapters:
+    - index.qmd
+    - part: "Concepts"
+      chapters:
+        - chapters/databases.qmd
+        - chapters/accessions.qmd
+        - chapters/finding-data.qmd
+    - part: "Downloading with the SRA Toolkit"
+      chapters:
+        - chapters/setup.qmd
+        - chapters/prefetch.qmd
+        - chapters/fasterq-dump.qmd
+        - chapters/at-scale.qmd
+    - part: "After the download"
+      chapters:
+        - chapters/verify-organise.qmd
+        - chapters/worked-example.qmd
+  appendices:
+    - chapters/ena.qmd
+    - chapters/special-cases.qmd
+    - chapters/troubleshooting.qmd
+    - chapters/cheatsheet.qmd
+
+  sidebar:
+    style: docked
+    background: light
+
+format:
+  html:
+    theme:
+      light: [cosmo, custom.scss]
+    mermaid:
+      theme: neutral
+    code-background: true
+    code-copy: true
+    code-overflow: wrap
+    toc: true
+    toc-depth: 3
+    smooth-scroll: true
+    link-external-icon: true
+    link-external-newwindow: true
+    number-depth: 2

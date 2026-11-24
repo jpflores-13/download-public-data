@@ -1,0 +1,66 @@
+# Accession numbers, decoded {#sec-accessions}
+
+Every record in these databases has an **accession**: a prefix that says
+what kind of thing it is, and a number. Once you can read the prefixes, you
+can tell from an ID alone whether it's a project, a sample, or the reads.
+
+## The hierarchy
+
+From largest to smallest:
+
+| Level | GEO | SRA (NCBI) | ENA | DDBJ | BioProject / BioSample | Airway example |
+|---|---|---|---|---|---|---|
+| **Project / study** | `GSE` | `SRP` | `ERP` | `DRP` | `PRJNA`, `PRJEB`, `PRJDB` | GSE52778, SRP033351, PRJNA229998 |
+| **Biological sample** | `GSM` | `SRS` | `ERS` | `DRS` | `SAMN`, `SAMEA`, `SAMD` | GSM1275862, SAMN02422669 |
+| **Experiment** (one library) | | `SRX` | `ERX` | `DRX` | | SRX384345 |
+| **Run** (the reads) | | **`SRR`** | **`ERR`** | **`DRR`** | | **SRR1039508** |
+
+**Runs are what you download.** `prefetch` and `fasterq-dump` work on run
+accessions (`SRR`/`ERR`/`DRR`). If you give `prefetch` a higher-level ID
+(an `SRP` or `SRX`), it will usually work out the runs, but it's clearer to
+make the run list yourself.
+
+## Runs, experiments and samples are not always one-to-one
+
+```
+GSM (sample)  ──  SRX (one library from it)  ──┬── SRR  (lane 1)
+                                               ├── SRR  (lane 2)
+                                               └── SRR  (a re-sequencing)
+```
+
+- One **sample** can have several **experiments** (e.g. two libraries
+  from the same RNA).
+- One **experiment** (library) can have several **runs**: different lanes
+  or flow cells, or extra sequencing to add depth.
+
+In the airway data each GSM has exactly one SRR. In many datasets it doesn't,
+and then **all the runs of a library need to be joined** before analysis, or
+you'll treat lanes as if they were separate replicates. See
+[Verify and organise](verify-organise.qmd#one-sample-many-runs).
+
+## Other IDs you'll meet
+
+| ID | What |
+|---|---|
+| `SUB...` | A submission ID, only meaningful to the submitter |
+| `GPL...` | GEO platform (the sequencer type, e.g. GPL11154 = Illumina HiSeq 2000, *Homo sapiens*) |
+| `GDS...` | An old curated GEO dataset; ignore for sequencing |
+| `phs...` | dbGaP study (controlled access) |
+| `EGAD`, `EGAS` | EGA dataset / study (controlled access) |
+
+::: {.callout-tip}
+## Check your understanding
+
+1. Which of these can you pass to `fasterq-dump`: `GSM1275862`, `SRX384345`,
+   `SRR1039508`, `PRJNA229998`?
+2. A GSM links to one SRX, which has four SRRs. How many samples should be in
+   your samplesheet for it?
+
+::: {.callout-note collapse="true" appearance="simple"}
+## Answers
+
+1. Only the run accession, `SRR1039508`. (An `ERR` or `DRR` run would work too.)
+2. One. The four runs are the same library sequenced four times (lanes or
+   top-ups), so join them into one pair of FASTQ files.
+:::
+:::

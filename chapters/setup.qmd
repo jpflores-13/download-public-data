@@ -1,0 +1,105 @@
+# Setting up the SRA Toolkit {#sec-setup}
+
+The **SRA Toolkit** is NCBI's set of command-line programs for SRA data. You
+need three of them: `prefetch` (download), `vdb-validate` (check) and
+`fasterq-dump` (convert to FASTQ). This chapter gets them working and
+configured so they don't fill your home folder.
+
+## Option 1: the Longleaf module
+
+```bash
+module avail sra          # find the module name and versions
+module load sratoolkit    # use the name `module avail` shows; add /<version> to pin one
+fasterq-dump --version
+```
+
+Use the newest 3.x version available. Older 2.x versions have bugs that
+newer ones fix and lack some options.
+
+## Option 2: conda (any Linux or Mac)
+
+```bash
+conda create -n sra -c conda-forge -c bioconda sra-tools pigz
+conda activate sra
+fasterq-dump --version
+```
+
+## Option 3: NCBI's prebuilt binaries
+
+From the [SRA Toolkit install page](https://github.com/ncbi/sra-tools/wiki/02.-Installing-SRA-Toolkit):
+
+```bash
+## Linux (Ubuntu build; AlmaLinux build also available)
+wget --output-document sratoolkit.tar.gz \
+  https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-ubuntu64.tar.gz
+## macOS
+curl --output sratoolkit.tar.gz \
+  https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-mac64.tar.gz
+
+tar -vxzf sratoolkit.tar.gz
+export PATH=$PWD/sratoolkit.3.*/bin:$PATH     # add to ~/.bashrc to keep it
+which fasterq-dump
+```
+
+## Check it works
+
+NCBI's own test fetches two reads from a small run and prints them:
+
+```bash
+fastq-dump --stdout -X 2 SRR390728
+```
+
+You should see eight lines of FASTQ. If it hangs or errors, see
+[Troubleshooting](troubleshooting.qmd).
+
+## Configure it (once)
+
+The toolkit keeps settings in `~/.ncbi/user-settings.mkfg`, edited with
+`vdb-config`. Two things matter on a cluster.
+
+### Where downloads go
+
+Depending on configuration, `prefetch` saves into the **current
+directory** or into a **user repository** (by default under your home, e.g.
+`~/ncbi/public/sra`). Home on Longleaf is small, and a full home breaks
+everything else. Choose the current directory, and always `cd` into
+`/work` before downloading:
+
+```bash
+vdb-config --prefetch-to-cwd
+```
+
+(Or run `vdb-config -i`, open the **TOOLS** tab, and set the prefetch
+location there.)
+
+### SRA Lite or Normalized {#sra-lite-or-normalized}
+
+`vdb-config -i` opens an interactive screen. On its main page there is an option
+**"Prefer SRA Lite files with simplified base quality scores"**
+([what that means](databases.qmd#whats-in-an-.sra-file)):
+
+- **Unticked** (prefer Normalized, with full qualities): the safe choice when
+  you'll look at quality plots or quality-trim.
+- **Ticked**: smaller downloads, constant quality 30.
+
+Navigate with the arrow keys or the highlighted letters, toggle with space,
+and **Save** and **Exit** at the bottom.
+
+::: {.callout-note}
+## vdb-config on a fresh install
+
+Newer toolkit versions may ask you to run `vdb-config -i` once before the
+first download, even if you change nothing: open it, save, exit.
+:::
+
+## Where to run, and where to put the data
+
+| Thing | Where | Why |
+|---|---|---|
+| Downloads and conversion | `/work/users/<o>/<n>/<onyen>/...` | Large and fast; conversion needs lots of temporary space |
+| Final `.fastq.gz` you'll keep | `/proj/<lab>/...` | Backed up; `/work` is purged |
+| Commands | An interactive job or `sbatch` | Conversion is CPU- and disk-heavy: not on the login node |
+
+```bash
+srun -p interact -n 1 -c 6 --mem=8g -t 4:00:00 --pty bash   # interactive job with 6 CPUs
+```

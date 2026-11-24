@@ -1,0 +1,73 @@
+# Overview {.unnumbered}
+
+Most published sequencing papers deposit their raw reads in a public
+archive. Re-using them is one of the cheapest experiments in biology: a
+control for your own data, a new question asked of an old dataset, or a way
+to learn a pipeline. Getting the files out, though, is less obvious than it
+should be. This guide explains, from the beginning, how to go from "the
+paper says the data are in GEO" to a folder of `.fastq.gz` files ready for
+a pipeline such as [bagPipes](https://github.com/PhanstielLab/bagPipes).
+
+It's written for wet-lab scientists who are new to the command line. If
+terms like *FASTQ*, *gzip* or *SLURM* are unfamiliar, the first chapters of
+[omics-walkthru](https://jpflores-13.github.io/omics-walkthru) explain them.
+
+## The short version
+
+```bash
+module load sratoolkit                         # or install it (see Setup)
+prefetch SRR1039508 --max-size u               # 1. download the .sra file
+vdb-validate SRR1039508                        # 2. check it
+fasterq-dump SRR1039508 --threads 6 --temp /path/to/scratch   # 3. convert to FASTQ
+pigz -p 6 SRR1039508*.fastq                    # 4. compress (gzip works too)
+```
+
+That gives `SRR1039508_1.fastq.gz` and `SRR1039508_2.fastq.gz`. Everything
+else in this guide explains each of those lines, how to find the accession,
+how to do it for 50 samples at once on Longleaf, and how to check and
+organise what you got.
+
+## The whole path
+
+```{mermaid}
+flowchart LR
+  P["Paper<br/>'data in GEO GSE52778'"] --> G["GEO series<br/>GSE → GSM samples"]
+  G --> S["SRA Run Selector<br/>GSM → SRR runs<br/>+ metadata table"]
+  S --> L["Accession list<br/>SRR_Acc_List.txt"]
+  L --> PF["prefetch<br/>.sra files"]
+  PF --> V["vdb-validate"]
+  V --> FQ["fasterq-dump<br/>FASTQ"]
+  FQ --> Z["compress<br/>.fastq.gz"]
+  Z --> M["merge runs per sample,<br/>rename, samplesheet"]
+  M --> B["pipeline<br/>(bagPipes)"]
+  S -.-> E["ENA: same data<br/>as ready-made .fastq.gz"]
+  E -.-> M
+```
+
+## How this guide is organised
+
+| Part | Chapters | Read it when |
+|---|---|---|
+| Concepts | [The databases](chapters/databases.qmd), [Accessions](chapters/accessions.qmd), [Finding the data](chapters/finding-data.qmd) | You have a paper and want to know what to download |
+| Downloading | [Setup](chapters/setup.qmd), [prefetch](chapters/prefetch.qmd), [fasterq-dump](chapters/fasterq-dump.qmd), [At scale on Longleaf](chapters/at-scale.qmd) | You're ready to download |
+| After the download | [Verify and organise](chapters/verify-organise.qmd), [Worked example](chapters/worked-example.qmd) | You have FASTQs and want to run a pipeline |
+| Appendices | [ENA](chapters/ena.qmd), [Special cases](chapters/special-cases.qmd), [Troubleshooting](chapters/troubleshooting.qmd), [Cheat sheet](chapters/cheatsheet.qmd) | Something is unusual, or you just need the commands |
+
+The repository's `scripts/` folder has ready-to-use scripts for each step:
+
+| Script | Does |
+|---|---|
+| [`scripts/download_sra.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/download_sra.sh) | SLURM array job: prefetch → validate → fasterq-dump → compress, one run per task |
+| [`scripts/merge_runs.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/merge_runs.sh) | Combine runs belonging to the same sample and rename to `<sample>_R1_001.fastq.gz` |
+| [`scripts/ena_download.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/ena_download.sh) | Download ready-made `.fastq.gz` from ENA and check MD5s |
+
+::: {.callout-note}
+## Running example
+
+Throughout, we use the **airway** dataset (GEO
+[GSE52778](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE52778); Himes
+*et al.*, *PLoS One* 2014): RNA-seq of human airway smooth muscle cells from
+four donors, untreated or treated with dexamethasone. It's paired-end, about
+20–40 million read pairs per run, and widely used for teaching (it is the
+Bioconductor `airway` package). Files for it are in `examples/`.
+:::

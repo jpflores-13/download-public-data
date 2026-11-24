@@ -1,0 +1,16 @@
+# Troubleshooting {#sec-troubleshooting}
+
+| Message or symptom | Likely cause | Fix |
+|---|---|---|
+| `... is larger than maximum allowed: skipped` | `prefetch`'s 20 GB default limit | `--max-size u` |
+| `disk-limit exceeded` / `No space left on device` | Not enough space for temp + output | `--temp` on `/work`; free space; `df -h` ([fasterq-dump](fasterq-dump.qmd#disk-space)) |
+| `Disk quota exceeded` in your home | Downloads or cache going to `~/ncbi` | `vdb-config --prefetch-to-cwd`, `cd` to `/work`, delete `~/ncbi/public/sra` |
+| Hangs or `timeout exhausted while reading file within network system module` | Network trouble or NCBI busy | Retry later; prefer `prefetch` (resumes) over streaming |
+| `item not found` / `failed to resolve accession` | Not a run accession, or not public yet (embargoed) | Use `SRR`/`ERR`/`DRR`; check the run page |
+| `fasterq-dump: command not found` | Toolkit not loaded / not on `PATH` | `module load ...` or `export PATH=...` ([Setup](setup.qmd)) |
+| Only one FASTQ for a paired run | Technical reads skipped, or submitted interleaved/concatenated | [Special cases](special-cases.qmd) |
+| `_1` and `_2` have different read counts | A file is truncated | `gzip -t`; reconvert that run |
+| Quality line is all `?` | SRA Lite data | Fine for counting; for qualities, prefer Normalized in `vdb-config -i` |
+| `vdb-validate` reports errors | Corrupt download | Delete the run folder and `prefetch` again |
+| Leftover `fasterq.tmp.*` folders | A conversion was killed | Delete them |
+| Array tasks fail at `module load` | Module name differs | Edit `scripts/download_sra.sh` to match `module avail sra` |
