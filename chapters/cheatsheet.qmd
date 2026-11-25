@@ -7,6 +7,13 @@ vdb-config --prefetch-to-cwd          # downloads go to the current folder
 vdb-config -i                         # interactive: SRA Lite vs Normalized, locations
 fastq-dump --stdout -X 2 SRR390728    # test
 
+## folders: scripts once, one folder per dataset, run everything from the dataset folder
+git clone https://github.com/jpflores-13/download-public-data.git ~/download-public-data
+mkdir -p ~/public_data/<GSE> && cd ~/public_data/<GSE>       # cluster: in scratch
+mv ~/Downloads/SRR_Acc_List.txt ~/Downloads/SraRunTable.csv .  # from Run Selector
+# cluster, run ON YOUR LAPTOP: scp ~/Downloads/{SRR_Acc_List.txt,SraRunTable.csv} <user>@<cluster>:<scratch>/public_data/<GSE>/
+wc -l SRR_Acc_List.txt; head -2 SraRunTable.csv                 # check
+
 ## metadata
 ## Run Selector: https://www.ncbi.nlm.nih.gov/Traces/study/?acc=<GSE or PRJNA>
 curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=<ACC>&result=read_run&fields=run_accession,sample_title,library_layout,read_count,fastq_ftp,fastq_md5&format=tsv"
@@ -23,23 +30,23 @@ while read -r a; do prefetch "$a" --max-size u -O sra && fasterq-dump "sra/$a" -
 
 ## many runs: SLURM array job
 mkdir -p logs
-sbatch --array=1-$(grep -c . SRR_Acc_List.txt)%4 scripts/download_sra.sh SRR_Acc_List.txt fastq
+sbatch --array=1-$(grep -c . SRR_Acc_List.txt)%4 ~/download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
 
 ## many runs: one job per run, then retry what failed
-bash scripts/submit_each.sh SRR_Acc_List.txt fastq            # CONVERTER=parallel to use parallel-fastq-dump
-bash scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
-bash scripts/submit_each.sh failed.txt fastq                  # repeat until failed.txt is empty
+bash ~/download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq            # CONVERTER=parallel to use parallel-fastq-dump
+bash ~/download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
+bash ~/download-public-data/scripts/submit_each.sh failed.txt fastq                  # repeat until failed.txt is empty
 
 ## parallel-fastq-dump (gzip built in, less temp space)
 parallel-fastq-dump --sra-id sra/SRR... --threads 4 --outdir fastq --tmpdir tmp --split-3 --gzip
 
 ## from ENA instead
-bash scripts/ena_download.sh <ACC> fastq
+bash ~/download-public-data/scripts/ena_download.sh <ACC> fastq
 
 ## check and organise
 for f in fastq/*.fastq.gz; do gzip -t "$f" || echo "BROKEN $f"; done
 cat fastq/read_counts.tsv
-bash scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+bash ~/download-public-data/scripts/merge_runs.sh runs_to_samples.tsv fastq merged
 
 ## quick peek without downloading everything
 fastq-dump -X 1000 --split-3 SRR...      # first 1000 spots

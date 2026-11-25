@@ -55,7 +55,7 @@ does this from a two-column table (`run`, `sample`) that you make from
 `SraRunTable.csv`:
 
 ```bash
-bash scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+bash ~/download-public-data/scripts/merge_runs.sh runs_to_samples.tsv fastq merged
 ```
 
 It also renames the files in the Illumina style (`<sample>_R1_001.fastq.gz`),
@@ -78,7 +78,8 @@ samplesheet.
 
 ## 6. Keep a record
 
-Next to the FASTQs, keep:
+In the dataset folder, next to `fastq/` and `merged/`, keep
+([layout](finding-data.qmd#where-files-go)):
 
 - `SraRunTable.csv` (and/or the ENA TSV),
 - `SRR_Acc_List.txt` and `runs_to_samples.tsv`,

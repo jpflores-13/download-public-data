@@ -1,0 +1,19 @@
+# Slides {.unnumbered}
+
+Two slide decks go with this guide, for teaching it or for a quick refresher.
+They open in a new tab. Press **F** for full screen, **S** for speaker notes,
+**M** for the slide menu, **Esc** for an overview of all slides; **E** then
+print (or `?print-pdf` at the end of the address) makes a PDF.
+
+::: {.slides-deck-list}
+[▶ 1. Finding public data](slides/01-finding-data.html){.btn .btn-primary target="_blank"}
+[▶ 2. Downloading, checking, organising](slides/02-downloading.html){.btn .btn-primary target="_blank"}
+:::
+
+| Deck | Covers | Chapters |
+|---|---|---|
+| 1. Finding public data | GEO, SRA, ENA; sample vs library vs run; accessions; Run Selector and its metadata | [The databases](chapters/databases.qmd), [Accessions](chapters/accessions.qmd), [Finding the data](chapters/finding-data.qmd) |
+| 2. Downloading, checking, organising | Setup, prefetch, fasterq-dump and alternatives, many runs and retries, checks, merging, ENA, the live demo | [Setup](chapters/setup.qmd) through [Worked example](chapters/worked-example.qmd), and the [Live demo](chapters/live-demo.qmd) |
+
+Every chapter also has a **▶ Slides for this chapter** button under its title
+that opens the matching slide.

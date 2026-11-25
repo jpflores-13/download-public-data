@@ -3,8 +3,8 @@
 ## Works after any download route (loop, xargs, array job, submit_each.sh, ENA).
 ##
 ## Usage:
-##   bash scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
-##   bash scripts/submit_each.sh failed.txt fastq          # or: sbatch --array=1-$(grep -c . failed.txt) ... failed.txt
+##   bash ~/download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
+##   bash ~/download-public-data/scripts/submit_each.sh failed.txt fastq          # or: sbatch --array=1-$(grep -c . failed.txt) ... failed.txt
 ## Repeat until failed.txt is empty.
 ##
 ## An accession counts as missing if it has no .fastq.gz, or if its _1 and _2 files

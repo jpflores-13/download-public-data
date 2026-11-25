@@ -23,21 +23,27 @@ want untreated and Dex only. From Run Selector
 | SRR1039520 | GSM1275874 | N061011_untreated | N061011 | untrt |
 | SRR1039521 | GSM1275875 | N061011_Dex | N061011 | dex |
 
-Each GSM has exactly one run, all `PAIRED`, 2 × 63 bp. The two files in this
-repository's `examples/` folder hold exactly this:
+Each GSM has exactly one run, all `PAIRED`, 2 × 63 bp. In real use you'd download `SRR_Acc_List.txt` and `SraRunTable.csv` from Run
+Selector (ticking these eight rows and using the **Selected** row) and move
+them into the dataset folder ([Where to put the two files](finding-data.qmd#where-files-go)).
+To save clicks, this repository's `examples/` folder already has:
 
-- `examples/airway_SRR_Acc_List.txt`: the eight runs
+- `examples/airway_SRR_Acc_List.txt`: the eight runs (= `SRR_Acc_List.txt`)
 - `examples/airway_runs_to_samples.tsv`: run → sample name
 
 ## 2. Download
 
-Set up a folder (anywhere with ~250 GB free):
+Set up the dataset folder (anywhere with ~250 GB free; on a cluster, in
+scratch) and put the two list files in it under their standard names:
 
 ```bash
-cd /path/with/space        # laptop folder, external drive, or cluster scratch
-git clone https://github.com/jpflores-13/download-public-data.git
-mkdir -p airway/logs && cd airway
-cp ../download-public-data/examples/airway_* .
+git clone https://github.com/jpflores-13/download-public-data.git ~/download-public-data   # once
+mkdir -p ~/public_data/GSE52778/logs && cd ~/public_data/GSE52778
+cp ~/download-public-data/examples/airway_SRR_Acc_List.txt SRR_Acc_List.txt
+cp ~/download-public-data/examples/airway_runs_to_samples.tsv runs_to_samples.tsv
+# and, if you downloaded it from Run Selector:
+mv ~/Downloads/SraRunTable.csv .
+ls
 ```
 
 Then pick **one** way to download:
@@ -47,8 +53,8 @@ Then pick **one** way to download:
 
 ```bash
 while read -r acc; do
-  bash ../download-public-data/scripts/ena_download.sh "$acc" fastq
-done < airway_SRR_Acc_List.txt
+  bash ~/download-public-data/scripts/ena_download.sh "$acc" fastq
+done < SRR_Acc_List.txt
 ```
 
 ENA files are already gzipped and MD5-checked. Then make the read-count table
@@ -60,13 +66,13 @@ for f in fastq/*.fastq.gz; do echo -e "$(basename $f)\t$(( $(zcat < $f | wc -l) 
 
 ## SRA Toolkit, simple loop (any computer)
 
-Use Route A from [Downloading many runs](at-scale.qmd#route-a-a-simple-loop-any-computer),
-with `SRR_Acc_List.txt` replaced by `airway_SRR_Acc_List.txt`.
+Run Route A from [Downloading many runs](at-scale.qmd#route-a-a-simple-loop-any-computer)
+as written, from this folder.
 
 ## SRA Toolkit, SLURM cluster
 
 ```bash
-sbatch --array=1-8%4 ../download-public-data/scripts/download_sra.sh airway_SRR_Acc_List.txt fastq
+sbatch --array=1-8%4 ~/download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
 ```
 :::
 
@@ -87,7 +93,7 @@ Here there's one run per sample, so this is just a rename, but the same
 command handles multi-run samples:
 
 ```bash
-bash ../download-public-data/scripts/merge_runs.sh airway_runs_to_samples.tsv fastq merged
+bash ~/download-public-data/scripts/merge_runs.sh runs_to_samples.tsv fastq merged
 ls merged/
 # N052611_dex_R1_001.fastq.gz  N052611_dex_R2_001.fastq.gz  N052611_untrt_R1_001.fastq.gz ...
 ```
@@ -105,7 +111,7 @@ run table:
 DIR=$PWD/merged/
 {
   printf "Project\tCell_Type\tDonor\tTreatment\tBio_Rep\tRead1\tRead2\tSequencing_Directory\n"
-  tail -n +2 airway_runs_to_samples.tsv | while IFS=$'\t' read -r run sample; do
+  tail -n +2 runs_to_samples.tsv | while IFS=$'\t' read -r run sample; do
     donor=${sample%_*}; trt=${sample#*_}
     printf "airway\tASM\t%s\t%s\t1\t%s_R1_001.fastq.gz\t%s_R2_001.fastq.gz\t%s\n" \
       "$donor" "$trt" "$sample" "$sample" "$DIR"
@@ -117,7 +123,7 @@ column -t RNAsamplesheet.txt
 And in `config/RNAconfig.yaml`:
 
 ```yaml
-samplesheet: '/path/with/space/airway/RNAsamplesheet.txt'
+samplesheet: '/path/to/public_data/GSE52778/RNAsamplesheet.txt'
 fileNamesFrom: ['Project', 'Cell_Type', 'Donor', 'Treatment']
 mergeBy: ['Project', 'Cell_Type', 'Treatment']    # one merged track per treatment
 ```
@@ -134,7 +140,7 @@ example, [nf-core/rnaseq](https://nf-co.re/rnaseq) wants a CSV with
 ```bash
 {
   echo "sample,fastq_1,fastq_2,strandedness"
-  tail -n +2 airway_runs_to_samples.tsv | while IFS=$'\t' read -r run sample; do
+  tail -n +2 runs_to_samples.tsv | while IFS=$'\t' read -r run sample; do
     echo "$sample,$DIR${sample}_R1_001.fastq.gz,$DIR${sample}_R2_001.fastq.gz,auto"
   done
 } > nfcore_samplesheet.csv
@@ -152,5 +158,5 @@ treatments *within* donors: `design = ~ Donor + Treatment`.
 ```bash
 fasterq-dump --version > sra_tools_version.txt
 mkdir -p /path/to/permanent/storage/GSE52778
-rsync -av merged/ airway_* fastq/read_counts.tsv sra_tools_version.txt /path/to/permanent/storage/GSE52778/
+rsync -av merged/ SRR_Acc_List.txt SraRunTable.csv runs_to_samples.tsv README.md fastq/read_counts.tsv sra_tools_version.txt /path/to/permanent/storage/GSE52778/
 ```

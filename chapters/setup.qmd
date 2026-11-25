@@ -9,6 +9,7 @@ shared cluster.
 ## Where should you run this?
 
 ```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
   Q1{"How much data?<br/>(add up the Bytes column)"} -->|"a few runs,<br/>< ~50 GB of .sra"| L["Laptop or workstation<br/>with ~20x that free on disk"]
   Q1 -->|"many runs, or<br/>more than you have disk for"| Q2{"Do you have a<br/>computing cluster?"}
@@ -152,21 +153,34 @@ download, even if you change nothing: open it, save, exit.
 
 ## A folder layout that works anywhere
 
+Every chapter uses the same layout: the guide's scripts cloned **once**, and
+**one folder per dataset** that holds the run list, the metadata, and
+everything downloaded. You run all commands from the dataset folder.
+
 ```bash
-mkdir -p ~/public_data/GSE52778 && cd ~/public_data/GSE52778   # or a scratch/external drive
+git clone https://github.com/jpflores-13/download-public-data.git ~/download-public-data   # once
+mkdir -p ~/public_data/GSE52778 && cd ~/public_data/GSE52778                               # per dataset
 mkdir -p sra tmp fastq logs
 ```
 
 ```
-GSE52778/
-├── SRR_Acc_List.txt     # runs to download
-├── SraRunTable.csv      # metadata
-├── sra/                 # .sra files from prefetch (deleted after conversion)
-├── tmp/                 # fasterq-dump temporary files
-├── fastq/               # the .fastq.gz you keep
-└── logs/
+~/download-public-data/        ← the scripts (cloned once)
+~/public_data/
+└── GSE52778/                  ← the dataset folder: run every command from here
+    ├── SRR_Acc_List.txt       ← runs to download   (from Run Selector)
+    ├── SraRunTable.csv        ← metadata           (from Run Selector)
+    ├── runs_to_samples.tsv    ← run → sample name  (you make it)
+    ├── README.md              ← paper, accession, date
+    ├── sra/                   ← .sra files from prefetch (deleted after conversion)
+    ├── tmp/                   ← fasterq-dump temporary files
+    ├── fastq/                 ← the .fastq.gz you keep
+    └── logs/
 ```
 
-On a cluster, put this in the **scratch** space (large and fast, but usually
-not backed up), and copy `fastq/` and the metadata somewhere permanent when
-you're done.
+How to get `SRR_Acc_List.txt` and `SraRunTable.csv` into the folder (from your
+browser's Downloads folder, up to a cluster, or straight from the command
+line): [Where to put the two files](finding-data.qmd#where-files-go).
+
+On a cluster, put `public_data/` in **scratch** space (large and fast, but
+usually not backed up) rather than home, and copy `fastq/` (or `merged/`) and
+the metadata files somewhere permanent when you're done.

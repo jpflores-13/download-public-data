@@ -1,0 +1,343 @@
+# Live demo: an instructor's script {#sec-live-demo}
+
+A step-by-step script for demonstrating this guide live, in about 40 minutes.
+It's written to be **foolproof**: everything is rehearsed the day before,
+every step has a check ("you should see"), and every step has a plan B, so a slow
+network or a typo never stops the class.
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart LR
+  subgraph A1["Act 1 · browser · 10 min"]
+    P["Paper"] --> G["GEO<br/>GSE52778"] --> RS["SRA Run Selector<br/>metadata + accession list"] --> E["ENA view<br/>same runs"]
+  end
+  subgraph A2["Act 2 · terminal · 20 min"]
+    PF["prefetch"] --> V["vdb-validate"] --> F["fasterq-dump"] --> Z["compress"] --> C["count reads<br/>vs the archive"]
+  end
+  subgraph A3["Act 3 · scale · 5 min"]
+    S["many runs:<br/>submit_each.sh"] --> M["find_missing.sh<br/>→ retry"]
+  end
+  A1 --> A2 --> A3 --> W(["Wrap-up · 5 min"])
+```
+
+## The plan in one table
+
+| Act | Time | What learners see | Data |
+|---|---|---|---|
+| 1. Find the data | 10 min | Paper → GEO → SRA Run Selector → ENA, in a browser | airway, [GSE52778](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE52778) |
+| 2. Download one run | 20 min | `prefetch` → `vdb-validate` → `fasterq-dump` → compress → check | **SRR390728**: NCBI's own small test run (7.2 M read pairs, 2 × 36 bp) |
+| 3. Many runs | 5 min | How to scale up and retry failures | the scripts in `scripts/` |
+| Wrap-up | 5 min | Recap map; questions | |
+
+::: {.callout-note}
+## Why a different run for Act 2?
+
+An airway run is ~2.9 Gb of sequence: converting it live takes long enough to
+lose the room. SRR390728 is the run NCBI uses in its own documentation. It's
+small, stable, paired-end RNA-seq, and each step finishes in seconds to a
+minute or two. Say so out loud: "the commands are identical for the airway runs;
+this one is just smaller."
+:::
+
+## What you need
+
+- A laptop or a cluster session with the **SRA Toolkit 3.x**, `pigz` (or `gzip`)
+  and `curl`. The easiest: `conda create -n sra -c conda-forge -c bioconda sra-tools pigz`
+  ([Setup](setup.qmd)).
+- This repository, cloned to your home folder: `git clone https://github.com/jpflores-13/download-public-data.git ~/download-public-data`
+- ~5 GB free disk where you'll demo.
+- A browser, and a projector-friendly terminal (see below).
+
+## The day before (30–45 min) {#day-before}
+
+Do all of this on **the same computer and account** you'll present from.
+
+1. **Install and activate the tools.**
+
+   ```bash
+   conda activate sra          # or: module load <sra module> pigz
+   fasterq-dump --version      # 3.x
+   ```
+
+2. **Configure the toolkit once**, so `prefetch` saves into the current folder:
+
+   ```bash
+   vdb-config --prefetch-to-cwd
+   ```
+
+   If a first-run message asks you to run `vdb-config -i`, do it, then *Save*,
+   *Exit* (on a cluster: `vdb-config --interactive-mode textual`).
+
+3. **Run the rehearsal**, which is also your **plan B**: it does the whole of
+   Act 2 into `~/demo_backup` and prints how long each step took.
+
+   ```bash
+   cd ~/download-public-data
+   bash demo/make_backup.sh
+   ```
+
+   Write the times down. If any step takes more than ~3 minutes on your network,
+   plan to switch to the backup for that step during class.
+
+4. **Run the preflight check**:
+
+   ```bash
+   bash ~/download-public-data/demo/preflight.sh
+   ```
+
+   Every line should say **OK** (a **WARN** about ENA is fine; Act 1 can show
+   ENA in the browser). Fix anything marked **FIX** and run it again.
+
+5. **Prepare the browser**: open these tabs, in order, and leave them open:
+
+   1. The paper's data statement (Himes *et al.*, *PLoS One* 2014), or just the
+      [GEO page](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE52778)
+   2. [SRA Run Selector for GSE52778](https://www.ncbi.nlm.nih.gov/Traces/study/?acc=GSE52778)
+   3. [ENA: PRJNA229998](https://www.ebi.ac.uk/ena/browser/view/PRJNA229998)
+   4. This guide's [Choose your route](../index.qmd#choose-your-route) map
+
+   Also click **Metadata** and **Accession List** in Run Selector now, and
+   move the two files into the backup, in case NCBI's website is slow in class:
+
+   ```bash
+   mv ~/Downloads/SraRunTable.csv ~/Downloads/SRR_Acc_List.txt ~/demo_backup/
+   ```
+
+   Then **empty your browser's Downloads folder of any other copies**, so the
+   live download in class saves under the standard names (not `SRR_Acc_List (1).txt`).
+
+6. **Prepare the terminal** for a projector:
+   - Font size 20–24 pt; a light theme often projects better than a dark one.
+   - A short prompt, so long paths don't wrap: `export PS1='\$ '` (bash) or
+     `PROMPT='%# '` (zsh).
+   - Close other terminal tabs; turn off notifications (Do Not Disturb).
+
+7. **Print or open this page** on a second screen or phone, so you can follow
+   the script without leaving the terminal.
+
+## 15 minutes before class
+
+```bash
+conda activate sra                    # or module load ...
+cd ~/                                 # or your cluster scratch folder
+rm -rf ~/demo_live && mkdir -p ~/demo_live && cd ~/demo_live
+bash ~/download-public-data/demo/preflight.sh
+clear
+```
+
+All **OK**? You're ready. Keep `~/demo_backup` untouched.
+
+## Act 1: find the data (browser, 10 min) {#act-1}
+
+| # | Do | Say | You should see | If it fails |
+|---|---|---|---|---|
+| 1.1 | Show the paper's data statement / tab 1 | "Every paper points to an accession. Here it's a GEO series, GSE52778." | GEO page with title, summary, 16 samples | Use a screenshot, or say what it would show |
+| 1.2 | On GEO, scroll to **Samples** | "Each GSM is one biological **sample**. GEO holds descriptions and processed files; the raw reads live in SRA." | `GSM1275862 N61311_untreated`, ... | |
+| 1.3 | Scroll to the bottom: *Relations → SRA*; then tab 2 (Run Selector) | "Run Selector is the table we actually want: one row per **run**." | Table with `Run`, `LibraryLayout`, `AvgSpotLen`, `Bytes`, `treatment` | Open `~/demo_backup/SraRunTable.csv` in a spreadsheet |
+| 1.4 | Point at `Run`, `Experiment`, `BioSample` columns | "Sample → library (SRX) → run (SRR). Runs are what we download." ([Sample, library, run](accessions.qmd#sample-library-run)) | | |
+| 1.5 | Point at `LibraryLayout` = PAIRED and `AvgSpotLen` = 126 | "Paired-end, 2 × 63 bp. Spot length counts both reads." | | |
+| 1.6 | Click **Metadata** and **Accession List** (Total row) | "Two files to always save: the table, and the list of runs. They land in Downloads; in a moment we'll move them into the dataset folder." | `SraRunTable.csv`, `SRR_Acc_List.txt` in your Downloads | Use the copies in `~/demo_backup/` (step 2.1) |
+| 1.7 | Tab 3 (ENA) | "The same runs are mirrored at ENA, which also offers ready-made `.fastq.gz` with checksums." | *Read Files* table with FASTQ links | Skip; mention it |
+| 1.8 | Tab 4 (route map) | "Two ways to get the reads: the SRA Toolkit, or ENA. Today: the toolkit." | | |
+
+## Act 2: download one run (terminal, 20 min) {#act-2}
+
+Type every command; don't paste. Typing at the class's pace is the point.
+After each command, wait, and read the output aloud.
+
+### 2.1 The dataset folder, and the two files (2 min)
+
+```bash
+pwd                                   # ~/demo_live: our dataset folder
+mv ~/Downloads/SRR_Acc_List.txt ~/Downloads/SraRunTable.csv .
+ls
+wc -l SRR_Acc_List.txt                # 16 runs
+head -3 SRR_Acc_List.txt
+head -2 SraRunTable.csv
+```
+
+**Say:** "One folder per dataset. The run list and the metadata live at the top
+of it, and every command runs from here. On a cluster, you'd `scp` these two
+files up from your laptop instead
+([Where to put the two files](finding-data.qmd#where-files-go)).
+This folder needs room to spare: conversion needs 10–20 times the download's size."
+
+**Expect:** both files listed; 16 lines in the list, starting `SRR10395...`.
+**If `mv` says no such file:** `cp ~/demo_backup/SRR_Acc_List.txt ~/demo_backup/SraRunTable.csv .`
+
+**Say:** "The scripts would read this list to download all 16. To keep the demo
+short, we'll download one small test run by hand; the commands are identical."
+
+### 2.2 How big is it? (1 min)
+
+```bash
+vdb-dump --info SRR390728 | head -20
+```
+
+**Expect:** a block of details including size and spot count.
+**If it fails or hangs >30 s:** press `Ctrl-C` and say "the Run Selector's `Bytes`
+column tells you the same thing."
+
+### 2.3 Download with prefetch (2–3 min)
+
+```bash
+prefetch SRR390728 --max-size u -p
+ls -lh SRR390728/
+```
+
+**Say:** "`prefetch` downloads NCBI's compressed `.sra` file into a folder named
+after the run. `--max-size u` lifts the 20 GB default limit. If the network
+drops, run the same command again and it resumes."
+
+**Expect:** progress, then `'SRR390728' was downloaded successfully`; a folder
+`SRR390728/` with `SRR390728.sra` (or `.sralite`).
+
+**If it's slow (> your rehearsal time + 1 min) or fails:** `Ctrl-C`, then:
+
+```bash
+cp -r ~/demo_backup/sra/SRR390728 .
+```
+
+"This is exactly why we rehearse with a backup. And it's what happens in real
+life: downloads fail, you retry."
+
+### 2.4 Check it (1 min)
+
+```bash
+vdb-validate SRR390728
+```
+
+**Expect:** several `... is consistent` / `ok` lines, no `error`.
+**Say:** "A cheap check before an expensive conversion."
+
+### 2.5 Convert to FASTQ (2–3 min)
+
+```bash
+mkdir -p tmp fastq
+fasterq-dump SRR390728 --threads 4 --temp tmp --outdir fastq --progress
+ls -lh fastq/
+```
+
+**Say while it runs:** "`fasterq-dump` reads the `.sra` and writes FASTQ. It
+splits pairs into `_1` and `_2`: that's `--split-3`, the default. Any reads
+without a mate would go to a third file; this run has none."
+
+**Expect:** `fastq/SRR390728_1.fastq` and `fastq/SRR390728_2.fastq`, roughly 1 GB each.
+
+**If it fails with a disk message:** `df -h .`, then use the backup:
+`cp ~/demo_backup/fastq/SRR390728_* fastq/` and skip 2.6.
+
+### 2.6 Compress (1–2 min)
+
+```bash
+pigz -p 4 fastq/*.fastq        # or: gzip fastq/*.fastq
+ls -lh fastq/
+```
+
+**Say:** "`fasterq-dump` doesn't compress. Compare the sizes before and after:
+FASTQ shrinks several-fold."
+
+### 2.7 Look inside (2 min)
+
+```bash
+zcat fastq/SRR390728_1.fastq.gz | head -8      # macOS: gzip -dc fastq/SRR390728_1.fastq.gz | head -8
+```
+
+**Say:** walk through the four lines of one read: name (`@SRR390728.1 ...`),
+bases, `+`, qualities. "The original instrument names are replaced by
+`run.spot`. Read length 36."
+
+### 2.8 Is it all there? (2 min)
+
+```bash
+for f in fastq/*.fastq.gz; do echo "$f $(( $(gzip -dc $f | wc -l) / 4 ))"; done
+```
+
+**Expect:** both files **7178576** reads.
+**Say:** "Same number in `_1` and `_2`, and it matches the archive's spot
+count (7,178,576 on Run Selector or ENA). That's the check that matters most."
+
+### 2.9 The ENA shortcut (2 min)
+
+```bash
+curl -s https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR390/SRR390728/SRR390728_1.fastq.gz | gzip -dc | head -8
+```
+
+**Say:** "ENA serves the same reads as `.fastq.gz` directly. Here I'm only
+streaming the first two reads; `scripts/ena_download.sh` downloads whole runs and
+checks their MD5s. No toolkit, no conversion."
+
+**If it hangs > 20 s:** `Ctrl-C`; "ENA is busy; this is why we have two routes."
+
+### 2.10 Tidy up (1 min)
+
+```bash
+rm -rf SRR390728 tmp
+ls
+```
+
+**Say:** "Once the FASTQ is checked, the `.sra` and the temporary files can go."
+
+## Act 3: many runs (terminal, 5 min) {#act-3}
+
+Don't run downloads here: show the scripts and the retry idea.
+
+```bash
+cd ~/download-public-data
+less scripts/submit_each.sh        # q to quit
+```
+
+**Say:** "For 50 runs we loop the same steps: one cluster job per run (or an
+array job, or a simple loop on a laptop)." Show the [Downloading many runs](at-scale.qmd)
+route map.
+
+Then show the retry loop on something real:
+
+```bash
+cd ~/demo_live
+printf "SRR390728\nSRR1039508\n" > demo_list.txt
+bash ~/download-public-data/scripts/find_missing.sh demo_list.txt fastq > failed.txt
+cat failed.txt
+```
+
+**Expect:** `SRR1039508: no FASTQ` on screen, and `failed.txt` containing `SRR1039508`.
+**Say:** "Downloads fail now and then. We don't search logs: we check which outputs
+are missing, resubmit just those, and repeat until the list is empty."
+
+## Wrap-up (5 min) {#wrap-up}
+
+Show the [Choose your route](../index.qmd#choose-your-route) map once more and recap:
+
+1. **Find**: paper → GEO → Run Selector: save the metadata table and the run list **at the top of the dataset folder**.
+2. **Download**: `prefetch` → `vdb-validate` → `fasterq-dump` → compress (or ENA).
+3. **Check**: read counts match the archive; `_1` = `_2`.
+4. **Organise**: merge runs of the same library; name files by sample; keep the metadata.
+
+Point learners to the [Worked example](worked-example.qmd) to do the full
+airway download themselves, and the [Cheat sheet](cheatsheet.qmd).
+
+## Plan B, all in one place {#plan-b}
+
+| Problem | Do this | Say |
+|---|---|---|
+| NCBI website slow (Act 1) | Open `~/demo_backup/SraRunTable.csv` | "Same table I saved yesterday" |
+| `prefetch` slow / fails | `Ctrl-C`; `cp -r ~/demo_backup/sra/SRR390728 .` | "Downloads fail: retry, or here's one I made earlier" |
+| `fasterq-dump` slow / disk full | `Ctrl-C`; `cp ~/demo_backup/fastq/SRR390728_* fastq/` | "Conversion needs lots of temp space" |
+| `command not found` | `conda activate sra` (or `module load ...`) | "Every new terminal needs the environment" |
+| No internet at all | Run Act 2 from the backup: `cd ~/demo_backup` and show each step's output with `ls -lh`, `zcat ... \| head`, the read-count loop | "Here's what each step produced" |
+| You mistype | Up-arrow, fix, Enter | (Learners like seeing this; it's normal) |
+
+## After class
+
+```bash
+rm -rf ~/demo_live          # keep ~/demo_backup for next time
+```
+
+::: {.callout-tip}
+## For learners following along
+
+Learners can type along on their own machine if they have the toolkit
+([Setup](setup.qmd)). SRR390728 needs ~3 GB free while converting. If a learner's
+download is slow, have them use the ENA streaming command (2.9) to see real
+reads while they wait.
+:::

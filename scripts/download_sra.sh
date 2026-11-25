@@ -10,10 +10,12 @@
 ## Download one SRA run per SLURM array task, convert it to gzipped FASTQ,
 ## and clean up the intermediate .sra file.
 ##
-## Usage (from the folder where you want the data):
+## Run from the dataset folder (e.g. ~/public_data/GSE52778) that contains
+## SRR_Acc_List.txt; this repository is assumed cloned to ~/download-public-data.
+## Usage:
 ##   mkdir -p logs
 ##   N=$(grep -c . SRR_Acc_List.txt)
-##   sbatch --array=1-${N}%4 scripts/download_sra.sh SRR_Acc_List.txt fastq
+##   sbatch --array=1-${N}%4 ~/download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
 ##
 ## Arguments:
 ##   1. a text file with one run accession (SRR/ERR/DRR) per line

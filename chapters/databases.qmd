@@ -27,6 +27,7 @@ the processed files, and **passes the raw reads to SRA**. A GEO sample page
 (GSM) has a link to its SRA records at the bottom.
 
 ```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
   GSE["GEO Series GSE52778<br/>(the experiment)"] --> GSM1["GEO Sample GSM1275862<br/>N61311_untreated"]
   GSE --> GSM2["GEO Sample GSM1275863<br/>N61311_Dex"]

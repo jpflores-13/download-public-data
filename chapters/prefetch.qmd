@@ -46,6 +46,7 @@ prefetch SRR1039508 -O sra --max-size u -p     # into ./sra/SRR1039508/
 ## Several runs
 
 ```bash
+cd ~/public_data/GSE52778      # the dataset folder, with SRR_Acc_List.txt in it
 prefetch --option-file SRR_Acc_List.txt -O sra --max-size u
 ## or, equivalently
 prefetch $(cat SRR_Acc_List.txt) -O sra --max-size u

@@ -1,0 +1,282 @@
+---
+title: "Downloading, checking, organising"
+subtitle: "download-public-data · Deck 2"
+author: "JP Flores"
+---
+
+## Where we are {#where}
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart LR
+  L["dataset folder:<br/>SRR_Acc_List.txt<br/>SraRunTable.csv"] --> PF["prefetch"] --> V["vdb-validate"] --> FQ["fasterq-dump"] --> Z["compress"] --> C["check"] --> M["merge, rename"] --> P["pipeline"]
+  L -. "or" .-> E["ENA .fastq.gz"] --> C
+```
+
+## Start in the dataset folder {#dataset-folder}
+
+```bash
+git clone https://github.com/jpflores-13/download-public-data.git ~/download-public-data   # once
+cd ~/public_data/GSE52778          # has SRR_Acc_List.txt and SraRunTable.csv (deck 1)
+mkdir -p sra tmp fastq logs
+```
+
+Every command in this deck runs **from here**; outputs land **here**.
+
+## Setup {#setup}
+
+```bash
+# any Mac / Linux (Windows: inside WSL)
+conda create -n sra -c conda-forge -c bioconda sra-tools pigz
+conda activate sra
+fasterq-dump --version            # want 3.x
+
+# or, on a cluster
+module avail sra
+```
+
+Test: `fastq-dump --stdout -X 2 SRR390728` prints 8 lines.
+
+## Configure once {#configure}
+
+```bash
+vdb-config --prefetch-to-cwd                 # downloads go to the current folder
+vdb-config -i                                # interactive settings
+vdb-config --interactive-mode textual        # same, when -i won't open over ssh
+```
+
+- Home folders on clusters are small: **`cd` somewhere with space** first.
+- SRA Lite vs Normalized: a checkbox in `vdb-config -i`.
+
+## Where to run it {#where-to-run}
+
+| | Laptop / workstation | Cluster |
+|---|---|---|
+| Good for | a few runs | many runs |
+| Run in | a folder / external drive with space | **scratch** space |
+| How | type commands, or a loop | batch jobs |
+| Keep results in | backed-up storage | project / lab space |
+
+## prefetch: download {#prefetch}
+
+```bash
+prefetch SRR1039508 --max-size u -O sra -p
+ls sra/SRR1039508/        # SRR1039508.sra
+```
+
+| Option | Meaning |
+|---|---|
+| `--max-size u` | No size limit (default: **20 GB**) |
+| `-O sra` | Put it in `sra/` |
+| `-p` | Progress bar |
+| `--option-file list.txt` | Many accessions |
+
+Interrupted? Run it again: it **resumes**.
+
+## vdb-validate: check {#validate}
+
+```bash
+vdb-validate sra/SRR1039508
+```
+
+- `... is consistent` → good
+- `error` / `corrupt` → delete the folder, `prefetch` again
+
+Cheap check before an expensive conversion.
+
+## fasterq-dump: convert {#fasterq-dump}
+
+```bash
+fasterq-dump sra/SRR1039508 --threads 6 --temp tmp --outdir fastq
+pigz -p 6 fastq/SRR1039508*.fastq            # it doesn't compress for you
+```
+
+| Option | Default | |
+|---|---|---|
+| `--threads` / `-e` | 6 | match your CPUs |
+| `--temp` / `-t` | here | **lots** of temp space |
+| `--outdir` / `-O` | here | |
+| split mode | `--split-3` | pairs → `_1`, `_2`; orphans → `.fastq` |
+
+## Split-3: what files you get {#split-3}
+
+| Spot has | Goes to |
+|---|---|
+| read 1 + read 2 | `SRR…_1.fastq` and `SRR…_2.fastq`, matching order |
+| one read only | `SRR….fastq` (orphans) |
+
+Paired pipeline → use `_1` and `_2`. Check the orphan file is **small**.
+
+## Disk space {#disk-space}
+
+- FASTQ ≈ **7×** the `.sra`
+- temp ≈ **1.5×** the FASTQ again
+- → plan for **10–20×** the `.sra` free while converting
+
+```bash
+df -h .                   # free space here
+du -sh sra/SRR1039508     # size of the download
+```
+
+Not `/tmp` on a cluster node: often tiny.
+
+## Three converters {#converters}
+
+| | `fastq-dump` | `parallel-fastq-dump` | `fasterq-dump` |
+|---|---|---|---|
+| Speed | slow | faster | fastest |
+| `--gzip` | yes | yes | no (use `pigz`) |
+| Default split | **none** | none | `--split-3` |
+| Temp space | little | some | **a lot** |
+
+```bash
+parallel-fastq-dump --sra-id sra/SRR1039508 --threads 4 --outdir fastq \
+  --tmpdir tmp --split-3 --gzip
+```
+
+## ⚠ `--split-files` vs `--split-3` {#split-files}
+
+Older scripts use `fastq-dump --split-files`.
+
+- If some spots have **only one read**, those go into `_1` only
+- → `_1` and `_2` have **different read counts**, pairs fall out of step
+- → aligners pair the wrong reads
+
+**Use `--split-3`**, and always compare `_1` vs `_2` read counts.
+
+## Many runs: four routes {#many-runs}
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart TD
+  Q{"Where?"} -->|"any computer"| A["A: loop"]
+  Q -->|"workstation"| B["B: xargs -P"]
+  Q -->|"SLURM"| C["C: array job"]
+  Q -->|"SLURM"| D["D: one job per run"]
+  A & B & C & D --> S["prefetch → validate → convert → compress"]
+  S --> F{"missing?"} -->|"yes"| R["resubmit failed.txt"] --> S
+```
+
+## Routes in one line each {#routes}
+
+```bash
+# A: loop (any computer)
+while read -r a; do prefetch "$a" --max-size u -O sra && fasterq-dump "sra/$a" -e 4 -t tmp -O fastq \
+  && pigz fastq/"$a"*.fastq && rm -rf "sra/$a"; done < SRR_Acc_List.txt
+
+# C: SLURM array job, 4 at a time
+sbatch --array=1-$(grep -c . SRR_Acc_List.txt)%4 ~/download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
+
+# D: one SLURM job per run (fasterq-dump, or CONVERTER=parallel)
+bash ~/download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
+```
+
+## Retry what failed {#retry}
+
+Downloads **do** fail sometimes. Plan for it:
+
+```bash
+bash ~/download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt   # what's missing or broken?
+bash ~/download-public-data/scripts/submit_each.sh failed.txt fastq                        # resubmit just those
+# repeat until failed.txt is empty
+```
+
+Checks the **files** (missing, corrupt `.gz`, `_1` ≠ `_2`), not log messages:
+also catches jobs that were killed silently.
+
+## Check what you got {#check}
+
+```bash
+for f in fastq/*.fastq.gz; do gzip -t "$f" || echo "BROKEN $f"; done      # complete?
+for f in fastq/*.fastq.gz; do echo "$f $(( $(gzip -dc $f | wc -l) / 4 ))"; done   # counts
+zcat fastq/SRR1039508_1.fastq.gz | head -8                               # looks right?
+```
+
+- `_1` count = `_2` count = the archive's **spots**
+- Quality line all `?` → SRA Lite
+
+## One sample, many runs → merge {#merge}
+
+```bash
+cat SRR111_1.fastq.gz SRR112_1.fastq.gz > sampleA_R1_001.fastq.gz
+cat SRR111_2.fastq.gz SRR112_2.fastq.gz > sampleA_R2_001.fastq.gz
+# or, from a run → sample table:
+bash ~/download-public-data/scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+```
+
+- `.gz` files concatenate safely
+- R1 with R1, R2 with R2, **same order**
+- Never merge different biological samples
+
+## The ENA route {#ena}
+
+```bash
+bash ~/download-public-data/scripts/ena_download.sh PRJNA229998 fastq      # whole project, MD5-checked
+```
+
+| | SRA Toolkit | ENA |
+|---|---|---|
+| Software | prefetch + fasterq-dump | `curl` / `wget` |
+| Temp space | 10–20× | none |
+| Output | needs gzip | `.fastq.gz` |
+| Check | `vdb-validate` | MD5 |
+
+## Worked example: airway {#worked-example}
+
+1. 8 runs (4 donors × untreated / Dex): `examples/airway_SRR_Acc_List.txt`
+2. Download: ENA, a loop, or an array job
+3. `merge_runs.sh` → `N61311_untrt_R1_001.fastq.gz`, …
+4. Build a samplesheet (bagPipes, nf-core, …) from the run table
+5. Keep `SraRunTable.csv`, read counts, toolkit version
+
+## Special cases {#special-cases}
+
+| Case | Do |
+|---|---|
+| 10x single-cell | `--split-files --include-technical` (barcode reads are "technical") |
+| Uploaded as BAM | still converts; originals under *Data access* |
+| "Paired" but one file | concatenated / interleaved upload: check read lengths |
+| dbGaP | approved request first, then `--ngc key.ngc` |
+
+## When things go wrong {#when-things-go-wrong}
+
+| Symptom | Fix |
+|---|---|
+| `larger than maximum allowed` | `--max-size u` |
+| `No space left on device` | `--temp` on a big disk |
+| `Disk quota exceeded` (home) | `vdb-config --prefetch-to-cwd`, `cd` to scratch |
+| hangs / timeouts | retry later; `prefetch` first; or ENA |
+| `_1` ≠ `_2` counts | reconvert with `--split-3` |
+
+## Live demo {#demo}
+
+::: {.try}
+Find GSE52778 → Run Selector → ENA; then `prefetch` → `vdb-validate` →
+`fasterq-dump` → compress → count reads on **SRR390728** (small, fast).
+:::
+
+Instructor script, with plan B for every step: [Live demo](../chapters/live-demo.html)
+
+## Cheat sheet {#cheat-sheet}
+
+```bash
+conda activate sra; vdb-config --prefetch-to-cwd
+prefetch SRR... --max-size u -O sra
+vdb-validate sra/SRR...
+fasterq-dump sra/SRR... --threads 6 --temp tmp --outdir fastq
+pigz -p 6 fastq/SRR...*.fastq
+for f in fastq/*.gz; do echo "$f $(( $(gzip -dc $f | wc -l) / 4 ))"; done
+bash ~/download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
+bash ~/download-public-data/scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+```
+
+## Recap {#recap}
+
+1. **prefetch → vdb-validate → fasterq-dump → compress** (or ENA)
+2. Plan **disk** (10–20×) and **retries**
+3. **Check**: `_1` = `_2` = archive spots
+4. **Organise**: merge runs, name by sample, keep the metadata
+
+::: {.book-link}
+[Guide: jpflores-13.github.io/download-public-data](../index.html)
+:::

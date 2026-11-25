@@ -1,6 +1,8 @@
 project:
   type: book
   output-dir: _book
+  # the slide decks are a small sub-project; build them into _book/slides
+  post-render: _scripts/build_slides.py
 
 book:
   title: "download-public-data"
@@ -14,6 +16,7 @@ book:
 
   chapters:
     - index.qmd
+    - slides.qmd
     - part: "Concepts"
       chapters:
         - chapters/databases.qmd
@@ -29,6 +32,9 @@ book:
       chapters:
         - chapters/verify-organise.qmd
         - chapters/worked-example.qmd
+    - part: "For instructors"
+      chapters:
+        - chapters/live-demo.qmd
   appendices:
     - chapters/ena.qmd
     - chapters/special-cases.qmd
@@ -54,3 +60,23 @@ format:
     link-external-icon: true
     link-external-newwindow: true
     number-depth: 2
+
+filters:
+  - _filters/slides-button.lua
+
+# Which slide deck (and slide) each chapter's "Slides" button opens.
+slide-map:
+  chapters/databases.qmd: "01-finding-data.html#/databases"
+  chapters/accessions.qmd: "01-finding-data.html#/sample-library-run"
+  chapters/finding-data.qmd: "01-finding-data.html#/finding-the-runs"
+  chapters/setup.qmd: "02-downloading.html#/setup"
+  chapters/prefetch.qmd: "02-downloading.html#/prefetch"
+  chapters/fasterq-dump.qmd: "02-downloading.html#/fasterq-dump"
+  chapters/at-scale.qmd: "02-downloading.html#/many-runs"
+  chapters/verify-organise.qmd: "02-downloading.html#/check"
+  chapters/worked-example.qmd: "02-downloading.html#/worked-example"
+  chapters/live-demo.qmd: "02-downloading.html#/demo"
+  chapters/ena.qmd: "02-downloading.html#/ena"
+  chapters/special-cases.qmd: "02-downloading.html#/special-cases"
+  chapters/troubleshooting.qmd: "02-downloading.html#/when-things-go-wrong"
+  chapters/cheatsheet.qmd: "02-downloading.html#/cheat-sheet"

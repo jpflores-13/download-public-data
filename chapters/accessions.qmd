@@ -20,6 +20,32 @@ accessions (`SRR`/`ERR`/`DRR`). If you give `prefetch` a higher-level ID
 (an `SRP` or `SRX`), it will usually work out the runs, but it's clearer to
 make the run list yourself.
 
+## Sample, library, run: what's the difference? {#sample-library-run}
+
+Three words that sound alike but mean different things, from the bench to the
+sequencer:
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart LR
+  S["Sample<br/>the biological material<br/>(a well of cells, a mouse liver)<br/>GSM · SRS · SAMN"] -->|"extract RNA/DNA,<br/>library prep"| L["Library<br/>the tube of adapter-ligated<br/>fragments made from it<br/>SRX (experiment)"]
+  L -->|"load on a<br/>flow cell"| R["Run<br/>one batch of reads from<br/>sequencing that library<br/>SRR · ERR · DRR"]
+```
+
+| | **Sample** | **Library** | **Run** |
+|---|---|---|---|
+| What it is | The biological thing you collected: cells, tissue, a treatment condition, a replicate | The sequencing-ready molecules **made from** a sample's RNA or DNA with one protocol | The reads that came off the sequencer for one library on one lane / flow cell / sequencing batch |
+| Made by | Your experiment | Library prep (e.g. TruSeq Stranded mRNA, ATAC, CUT&Tag) | The sequencer |
+| Accessions | GEO `GSM`, SRA `SRS`, BioSample `SAMN` | SRA `SRX` ("experiment") | `SRR` / `ERR` / `DRR` |
+| Can there be several per parent? | — | Yes: one sample → several libraries (RNA-seq and ATAC from the same cells; or the same prep done twice) | Yes: one library → several runs (several lanes, a re-sequencing to add depth) |
+| In a replicate design | **Biological replicates** = different samples | **Technical replicates** = different libraries from one sample | Lanes / top-ups: **not** replicates, just more reads |
+| bagPipes samplesheet column | `Bio_Rep` | `Tech_Rep` | `Seq_Rep` |
+| What to do before analysis | Keep separate: each is a data point | Usually merge, after checking they look alike | **Always merge** (concatenate FASTQs) |
+
+A quick test: **if it went through a different pipette tip at the bench, it's
+a different sample or library; if it only went through a different lane of the
+sequencer, it's the same library, just another run.**
+
 ## Runs, experiments and samples are not always one-to-one
 
 ```
@@ -51,16 +77,21 @@ you'll treat lanes as if they were separate replicates. See
 ::: {.callout-tip}
 ## Check your understanding
 
-1. Which of these can you pass to `fasterq-dump`: `GSM1275862`, `SRX384345`,
+1. A lab grows cells in three separate dishes, makes one RNA-seq library from
+   each, and sequences each library on two lanes. How many samples, libraries
+   and runs is that, and how many rows go in the samplesheet?
+2. Which of these can you pass to `fasterq-dump`: `GSM1275862`, `SRX384345`,
    `SRR1039508`, `PRJNA229998`?
-2. A GSM links to one SRX, which has four SRRs. How many samples should be in
+3. A GSM links to one SRX, which has four SRRs. How many samples should be in
    your samplesheet for it?
 
 ::: {.callout-note collapse="true" appearance="simple"}
 ## Answers
 
-1. Only the run accession, `SRR1039508`. (An `ERR` or `DRR` run would work too.)
-2. One. The four runs are the same library sequenced four times (lanes or
+1. 3 samples, 3 libraries, 6 runs. Three samplesheet rows: join the two lanes
+   of each library first.
+2. Only the run accession, `SRR1039508`. (An `ERR` or `DRR` run would work too.)
+3. One. The four runs are the same library sequenced four times (lanes or
    top-ups), so join them into one pair of FASTQ files.
 :::
 :::

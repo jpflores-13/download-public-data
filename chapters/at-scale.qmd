@@ -4,6 +4,7 @@ For a handful of runs, typing the commands one at a time is fine. For more,
 automate it. Pick the route that matches your computer:
 
 ```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
   Q{"Where are you running?"} -->|"laptop / any computer"| A["Route A: a simple loop<br/>one run after another"]
   Q -->|"workstation with<br/>many cores"| B["Route B: a few runs<br/>in parallel (xargs -P)"]
@@ -15,9 +16,13 @@ flowchart TD
   F -->|"no"| DONE(["Verify and organise"])
 ```
 
-All three do the same thing for each run:
+All routes start in the **dataset folder** that holds `SRR_Acc_List.txt`
+([Where to put the two files](finding-data.qmd#where-files-go)), with the
+guide's scripts cloned once to `~/download-public-data`. All do the same thing
+for each run:
 
 ```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart LR
   A["one accession"] --> B["prefetch<br/>--max-size u"] --> C["vdb-validate"] --> D["fasterq-dump<br/>--threads N --temp ..."] --> E["pigz / gzip"] --> F["count reads"] --> G["delete .sra<br/>and temp files"]
 ```
@@ -25,7 +30,7 @@ flowchart LR
 ## Route A: a simple loop (any computer)
 
 ```bash
-cd ~/public_data/GSE52778          # contains SRR_Acc_List.txt
+cd ~/public_data/GSE52778          # the dataset folder: contains SRR_Acc_List.txt
 mkdir -p sra tmp fastq
 while read -r acc; do
   acc=$(echo "$acc" | tr -d '[:space:]'); [ -z "$acc" ] && continue
@@ -75,11 +80,10 @@ each as its own job. The repository's
 does this:
 
 ```bash
-cd /path/to/scratch/GSE52778            # contains SRR_Acc_List.txt
-git clone https://github.com/jpflores-13/download-public-data.git
+cd /path/to/scratch/public_data/GSE52778   # the dataset folder: contains SRR_Acc_List.txt
 mkdir -p logs
 N=$(grep -c . SRR_Acc_List.txt)          # number of non-empty lines
-sbatch --array=1-${N}%4 download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
+sbatch --array=1-${N}%4 ~/download-public-data/scripts/download_sra.sh SRR_Acc_List.txt fastq
 ```
 
 - `--array=1-N` runs one task per line; the **`%4`** means at most four at once.
@@ -129,14 +133,14 @@ script is written inline, between `<<EOS` and `EOS`, and fed straight to
 `sbatch`.
 
 ```bash
-bash download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
+bash ~/download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
 ```
 
 Choose the converter and resources with environment variables:
 
 ```bash
 CONVERTER=parallel THREADS=4 PARTITION=general \
-  bash download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
+  bash ~/download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
 ```
 
 `CONVERTER=fasterq` (the default) uses `fasterq-dump` + `pigz`;
@@ -155,7 +159,7 @@ So plan for a retry loop from the start:
 2. List what's missing or broken:
 
    ```bash
-   bash download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
+   bash ~/download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
    ```
 
    It prints why each run is listed (no FASTQ, a corrupt `.gz`, or `_1` and `_2`
@@ -163,7 +167,7 @@ So plan for a retry loop from the start:
 3. Resubmit only those, with the same route but `failed.txt` as the list:
 
    ```bash
-   bash download-public-data/scripts/submit_each.sh failed.txt fastq
+   bash ~/download-public-data/scripts/submit_each.sh failed.txt fastq
    ```
 4. Repeat 2–3 until `failed.txt` is empty.
 

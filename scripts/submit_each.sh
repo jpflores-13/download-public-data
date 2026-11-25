@@ -2,9 +2,11 @@
 ## Submit one SLURM job per accession (instead of an array job).
 ## Each job: prefetch -> vdb-validate -> convert to gzipped FASTQ -> delete .sra.
 ##
-## Usage (from the folder where you want the data):
-##   bash scripts/submit_each.sh SRR_Acc_List.txt [outdir]
-##   bash scripts/submit_each.sh failed.txt      # resubmit only what failed (see find_missing.sh)
+## Run from the dataset folder (e.g. ~/public_data/GSE52778) that contains
+## SRR_Acc_List.txt; this repository is assumed cloned to ~/download-public-data.
+## Usage:
+##   bash ~/download-public-data/scripts/submit_each.sh SRR_Acc_List.txt [outdir]
+##   bash ~/download-public-data/scripts/submit_each.sh failed.txt      # resubmit only what failed (see find_missing.sh)
 ##
 ## Options, set as environment variables:
 ##   CONVERTER=fasterq (default) | parallel   use fasterq-dump + pigz, or parallel-fastq-dump --gzip
@@ -12,7 +14,7 @@
 ##   PARTITION=<name>                         SLURM partition (default: the cluster's default)
 ##   SRA_MODULE=<name>                        module to load if fasterq-dump is not already on PATH
 ## Example:
-##   CONVERTER=parallel PARTITION=general bash scripts/submit_each.sh SRR_Acc_List.txt fastq
+##   CONVERTER=parallel PARTITION=general bash ~/download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
 
 set -euo pipefail
 LIST=${1:?"give a file of accessions, one per line"}
@@ -57,4 +59,4 @@ EOS
   n=$((n + 1))
 done
 echo "Submitted $n job(s). Check progress with: squeue -u \$USER"
-echo "When they finish, list anything missing with: bash scripts/find_missing.sh $LIST $OUT > failed.txt"
+echo "When they finish, list anything missing with: bash ~/download-public-data/scripts/find_missing.sh $LIST $OUT > failed.txt"

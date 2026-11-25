@@ -2,8 +2,8 @@
 ## Download gzipped FASTQ directly from ENA (no SRA Toolkit needed) and check MD5s.
 ##
 ## Usage:
-##   bash scripts/ena_download.sh PRJNA229998 fastq      # a whole project
-##   bash scripts/ena_download.sh SRR1039508 fastq       # one run
+##   bash ~/download-public-data/scripts/ena_download.sh PRJNA229998 fastq      # a whole project
+##   bash ~/download-public-data/scripts/ena_download.sh SRR1039508 fastq       # one run
 ## Accepts project (PRJNA/PRJEB, SRP), sample (SAMN, SRS), experiment (SRX) or run (SRR/ERR/DRR) accessions.
 ## Works on Linux and macOS: uses wget or curl, and md5sum or macOS `md5`.
 

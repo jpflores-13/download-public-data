@@ -12,11 +12,17 @@ works on a **laptop, a workstation, or a computing cluster**. If terms like
 *FASTQ*, *gzip* or *terminal* are unfamiliar, the Foundations chapters of
 [omics-walkthru](https://jpflores-13.github.io/omics-walkthru) explain them.
 
+::: {.slides-deck-list}
+[▶ Slides 1: Finding public data](slides/01-finding-data.html){.btn .btn-outline-primary .btn-sm target="_blank"}
+[▶ Slides 2: Downloading, checking, organising](slides/02-downloading.html){.btn .btn-outline-primary .btn-sm target="_blank"}
+:::
+
 ## Choose your route
 
 Answer these questions in order. Each box links to the chapter that covers it.
 
 ```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart TD
   START(["You have a paper or an accession"]) --> Q0{"Do you need the raw reads,<br/>or just the authors' results?"}
   Q0 -->|"just their results<br/>(counts, bigWigs, peaks)"| SUP["Download GEO supplementary files<br/>(plain links, no toolkit)<br/>→ The databases"]
@@ -38,9 +44,11 @@ flowchart TD
 
 ## The short version
 
-With the SRA Toolkit installed ([Setup](chapters/setup.qmd)):
+With the SRA Toolkit installed ([Setup](chapters/setup.qmd)), from the
+dataset's own folder ([where things go](chapters/finding-data.qmd#where-files-go)):
 
 ```bash
+mkdir -p ~/public_data/GSE52778 && cd ~/public_data/GSE52778
 prefetch SRR1039508 --max-size u               # 1. download the .sra file
 vdb-validate SRR1039508                        # 2. check it
 fasterq-dump SRR1039508 --threads 4 --temp tmp # 3. convert to FASTQ
@@ -62,10 +70,11 @@ what you got.
 ## The whole path, from paper to pipeline
 
 ```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
 flowchart LR
   P["Paper<br/>'data in GEO GSE52778'"] --> G["GEO series<br/>GSE → GSM samples"]
   G --> S["SRA Run Selector / ENA<br/>GSM → SRR runs<br/>+ metadata table"]
-  S --> L["SRR_Acc_List.txt<br/>SraRunTable.csv"]
+  S --> L["SRR_Acc_List.txt + SraRunTable.csv<br/>→ moved into the<br/>dataset folder"]
   L --> PF["prefetch<br/>.sra"] --> V["vdb-validate"] --> FQ["fasterq-dump<br/>.fastq"] --> Z["pigz<br/>.fastq.gz"]
   L -. "or" .-> E["ENA<br/>.fastq.gz + MD5"]
   Z & E --> M["check counts,<br/>merge runs per sample,<br/>rename"]
@@ -79,6 +88,7 @@ flowchart LR
 | Concepts | [The databases](chapters/databases.qmd), [Accessions](chapters/accessions.qmd), [Finding the data](chapters/finding-data.qmd) | You have a paper and want to know what to download |
 | Downloading | [Setup](chapters/setup.qmd), [prefetch](chapters/prefetch.qmd), [fasterq-dump](chapters/fasterq-dump.qmd), [Downloading many runs](chapters/at-scale.qmd) | You're ready to download |
 | After the download | [Verify and organise](chapters/verify-organise.qmd), [Worked example](chapters/worked-example.qmd) | You have FASTQs and want to run a pipeline |
+| For instructors | [Live demo](chapters/live-demo.qmd) | You're teaching this and want a rehearsed, step-by-step demo |
 | Appendices | [ENA](chapters/ena.qmd), [Special cases](chapters/special-cases.qmd), [Troubleshooting](chapters/troubleshooting.qmd), [Cheat sheet](chapters/cheatsheet.qmd) | Something is unusual, or you just need the commands |
 
 The repository's `scripts/` folder has ready-to-use scripts:

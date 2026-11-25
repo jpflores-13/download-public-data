@@ -25,11 +25,16 @@ its raw reads are in ENA, under an `ERP`/`PRJEB` linked from the BioStudies page
 3. In Run Selector, the table has **one row per run** with the metadata as
    columns. Tick rows to select a subset (e.g. only untreated and Dex), or
    use all.
-4. Download two files with the buttons in the *Select* box:
+4. Download two files with the buttons in the *Select* box. The box has a
+   **Total** row (all runs) and a **Selected** row (only the rows you ticked):
+   use the row that matches what you want.
    - **Accession List** → `SRR_Acc_List.txt`: one run per line. This is the
      input to the download scripts.
    - **Metadata** → `SraRunTable.csv` (older downloads: `.txt`): the full
      table.
+
+   Your browser saves both into your computer's **Downloads** folder. The next
+   section says where to move them.
 
 ### Columns of SraRunTable worth knowing
 
@@ -49,6 +54,106 @@ its raw reads are in ENA, under an `ERP`/`PRJEB` linked from the BioStudies page
 **Save `SraRunTable.csv` with your data.** It is the record of what each
 file is, and you'll build your samplesheet from it.
 :::
+
+## Where to put the two files {#where-files-go}
+
+Give **each dataset its own folder**, named after its accession, and put
+`SRR_Acc_List.txt` and `SraRunTable.csv` **at the top of that folder**. That
+folder is where you'll run every download command, and where the FASTQs end
+up. Keep the guide's scripts in one place, cloned once:
+
+```
+~/download-public-data/           ← this guide's repository (the scripts), cloned once
+~/public_data/                    ← all your public datasets (on a cluster: in scratch)
+└── GSE52778/                     ← ONE folder per dataset, named by accession; run commands from here
+    ├── SRR_Acc_List.txt          ← Run Selector "Accession List"
+    ├── SraRunTable.csv           ← Run Selector "Metadata"
+    ├── runs_to_samples.tsv       ← you make it: run → sample name
+    ├── README.md                 ← paper, accession, date downloaded
+    ├── sra/   tmp/               ← temporary; deleted after conversion
+    ├── fastq/                    ← the downloaded FASTQs (+ read_counts.tsv)
+    ├── merged/                   ← one pair per sample, named by sample
+    └── logs/                     ← job logs (clusters)
+```
+
+```bash
+git clone https://github.com/jpflores-13/download-public-data.git ~/download-public-data   # once
+mkdir -p ~/public_data/GSE52778 && cd ~/public_data/GSE52778                               # per dataset
+```
+
+On a cluster, put `public_data/` in your **scratch** space instead of `~`
+(home folders are small): for example `mkdir -p /scratch/$USER/public_data/GSE52778`.
+
+### Getting the files there
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart TD
+  RS["Run Selector<br/>(in your web browser)"] -->|"click Accession List<br/>and Metadata"| DL["your laptop's<br/>Downloads folder"]
+  DL -->|"working on this laptop"| M1["mv into the dataset folder"]
+  DL -->|"working on a cluster"| M2["scp / rsync up<br/>to the dataset folder"]
+  CLI["No browser?<br/>(e.g. already on the cluster)"] -->|"ENA API / Entrez Direct"| M3["create them directly<br/>in the dataset folder"]
+  M1 & M2 & M3 --> DS["GSE52778/<br/>SRR_Acc_List.txt + SraRunTable.csv"]
+  DS --> CHK["check them<br/>(below)"]
+```
+
+::: {.panel-tabset}
+## Working on this computer
+
+```bash
+mv ~/Downloads/SRR_Acc_List.txt ~/Downloads/SraRunTable.csv ~/public_data/GSE52778/
+```
+
+If you downloaded more than once, your browser may have named the newest
+copies `SRR_Acc_List (1).txt` etc. Rename them as you move them:
+`mv ~/Downloads/"SRR_Acc_List (1).txt" ~/public_data/GSE52778/SRR_Acc_List.txt`.
+
+## Working on a cluster
+
+Run this **on your laptop** (in a terminal on the laptop, not in your cluster
+session), filling in your user name, the cluster's address and your dataset
+folder there:
+
+```bash
+scp ~/Downloads/SRR_Acc_List.txt ~/Downloads/SraRunTable.csv \
+    <user>@<cluster address>:/scratch/<user>/public_data/GSE52778/
+```
+
+Or use a graphical file-transfer app (Cyberduck, FileZilla, MobaXterm, or your
+cluster's web portal such as Open OnDemand) and drop the two files into the
+dataset folder.
+
+## Without a browser
+
+Make both files directly where you are, from ENA (works for GEO/SRA projects too):
+
+```bash
+cd ~/public_data/GSE52778
+curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJNA229998&result=read_run&fields=run_accession,sample_accession,experiment_accession,sample_title,library_layout,read_count,base_count&format=tsv" > ena_runs.tsv
+tail -n +2 ena_runs.tsv | cut -f1 > SRR_Acc_List.txt
+```
+
+`ena_runs.tsv` then plays the role of `SraRunTable.csv`. Or, with NCBI's
+Entrez Direct: `esearch -db sra -query PRJNA229998 | efetch -format runinfo > SraRunTable.csv`
+(one row per run; the run accessions are in its first column).
+:::
+
+### Check they arrived intact
+
+```bash
+cd ~/public_data/GSE52778
+ls -l                         # both files, not 0 bytes
+head -3 SRR_Acc_List.txt      # SRR... one per line
+wc -l SRR_Acc_List.txt        # number of runs (should match the Run Selector count)
+head -2 SraRunTable.csv       # a header line, then one run
+```
+
+If you only want some of the runs, edit `SRR_Acc_List.txt` (one accession per
+line; `nano SRR_Acc_List.txt`), or download the **Selected** list instead. The
+scripts in this guide ignore blank lines and Windows line endings.
+
+Then write a two-line `README.md` in the same folder (the paper, the accession,
+today's date). Future you will thank you.
 
 ## Option B: ENA (also gives direct FASTQ links)
 

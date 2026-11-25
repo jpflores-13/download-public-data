@@ -1,0 +1,237 @@
+---
+title: "Finding public sequencing data"
+subtitle: "download-public-data · Deck 1"
+author: "JP Flores"
+---
+
+## Why reuse public data? {#why}
+
+- A **control** for your own experiment
+- A **new question** asked of an old dataset
+- A **practice dataset** for learning a pipeline
+- Cheap: someone else already sequenced it
+
+. . .
+
+The catch: getting the files out is less obvious than it should be.
+
+::: {.notes}
+Ask the room: who has tried to download data from a paper? What went wrong?
+:::
+
+## The whole path {#the-path}
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart LR
+  P["Paper<br/>'GSE52778'"] --> G["GEO<br/>samples"] --> S["Run Selector / ENA<br/>runs + metadata"] --> D["download<br/>.sra → FASTQ"] --> C["check,<br/>merge, rename"] --> PL["pipeline"]
+```
+
+Today (deck 1): the **left half**: from a paper to a list of runs and a metadata table.
+
+## Choose your route {#route}
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart TD
+  Q0{"Raw reads or<br/>authors' results?"} -->|"results"| SUP["GEO supplementary files"]
+  Q0 -->|"raw reads"| Q1{"Open access?"}
+  Q1 -->|"no"| CA["dbGaP / EGA:<br/>apply first"]
+  Q1 -->|"yes"| ACC["Get runs + metadata"] --> Q2{"How?"}
+  Q2 -->|"simplest"| ENA["ENA .fastq.gz"]
+  Q2 -->|"official"| SRA["SRA Toolkit"]
+```
+
+## The databases {#databases}
+
+| Database | Run by | Holds |
+|---|---|---|
+| **GEO** | NCBI (USA) | Experiment descriptions, sample info, **processed** files |
+| **SRA** | NCBI (USA) | **Raw reads** (NCBI's `.sra` format) |
+| **ENA** | EMBL-EBI (UK) | Raw reads, also as ready-made **`.fastq.gz`** |
+| DDBJ | Japan | Raw reads |
+| dbGaP / EGA | NCBI / EBI | **Controlled-access** human data |
+
+SRA, ENA and DDBJ **mirror each other** (INSDC): any run is in all three.
+
+::: {.book-link}
+[The databases](../chapters/databases.html)
+:::
+
+## GEO hands raw reads to SRA {#geo-sra}
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart TD
+  GSE["GEO series GSE52778<br/>(the experiment)"] --> GSM1["GSM1275862<br/>N61311_untreated"]
+  GSE --> GSM2["GSM1275863<br/>N61311_Dex"]
+  GSE -.-> SUP["processed files"]
+  GSM1 --> SRX1["SRX384345"] --> SRR1["SRR1039508"]
+  GSM2 --> SRX2["SRX384346"] --> SRR2["SRR1039509"]
+```
+
+## Processed or raw? {#processed-or-raw}
+
+| You want to… | Download |
+|---|---|
+| Re-plot their result, view their tracks | **GEO supplementary files** (no toolkit) |
+| Compare with your data, processed the same way | **Raw reads** |
+| Use a newer genome or annotation | Raw reads |
+| Check their QC | Raw reads |
+
+Processing differences between labs can be bigger than the biology.
+
+## SRA Normalized vs SRA Lite {#sra-lite}
+
+| | Normalized (`.sra`) | Lite (`.sralite`) |
+|---|---|---|
+| Quality scores | Original | **Constant**: 30 (pass) or 3 (reject) |
+| Size | Larger | ~60 % smaller |
+| Fine for | Everything | Counting genes, calling peaks |
+
+FastQC quality plot **flat at 30**? That's Lite data, not a perfect run.
+
+## Sample, library, run {#sample-library-run}
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart LR
+  S["Sample<br/>biological material<br/>GSM · SRS · SAMN"] -->|"library prep"| L["Library<br/>tube of fragments<br/>SRX"] -->|"sequencing"| R["Run<br/>batch of reads<br/>SRR"]
+```
+
+| | Sample | Library | Run |
+|---|---|---|---|
+| Several per parent? | — | yes (two preps; RNA + ATAC) | yes (lanes, top-ups) |
+| Replicates? | **biological** | technical | **not** replicates |
+| Before analysis | keep separate | usually merge | **always merge** |
+
+Different pipette tip → different sample or library. Different lane → same library.
+
+::: {.book-link}
+[Accessions](../chapters/accessions.html#sample-library-run)
+:::
+
+## Accessions, decoded {#accessions}
+
+| Level | GEO | SRA | ENA | BioProject / BioSample |
+|---|---|---|---|---|
+| Project | `GSE` | `SRP` | `ERP` | `PRJNA`, `PRJEB` |
+| Sample | `GSM` | `SRS` | `ERS` | `SAMN`, `SAMEA` |
+| Library | | `SRX` | `ERX` | |
+| **Run** | | **`SRR`** | **`ERR`** | |
+
+**Runs are what you download.** One sample can have many runs: merge them.
+
+## Quick check {#quiz}
+
+Three dishes of cells, one library each, each library sequenced on two lanes.
+
+- How many samples? libraries? runs?
+- How many samplesheet rows?
+
+. . .
+
+**3 samples, 3 libraries, 6 runs → 3 rows** (join the two lanes first).
+
+## Finding the runs: SRA Run Selector {#finding-the-runs}
+
+1. Paper → **data availability** → `GSE52778`
+2. GEO page → scroll to **Samples**
+3. Bottom of the page: *Relations → SRA* → **Run Selector**\
+   (or `ncbi.nlm.nih.gov/Traces/study/?acc=GSE52778`)
+4. Download **Metadata** (`SraRunTable.csv`) and **Accession List** (`SRR_Acc_List.txt`)\
+   (**Total** row = all runs; **Selected** row = the ticked ones)
+
+::: {.notes}
+Live: open GEO, then Run Selector. Point at Run, Experiment, BioSample,
+LibraryLayout, AvgSpotLen, Bytes.
+:::
+
+## Where the two files go {#where-files-go}
+
+```
+~/download-public-data/      ← the scripts, cloned once
+~/public_data/               ← cluster: in scratch
+└── GSE52778/                ← ONE folder per dataset; run every command here
+    ├── SRR_Acc_List.txt     ← "Accession List"
+    ├── SraRunTable.csv      ← "Metadata"
+    └── fastq/ merged/ ...   ← made by the download
+```
+
+```{mermaid}
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false}}}%%
+flowchart LR
+  RS["Run Selector"] --> DL["Downloads<br/>folder"]
+  DL -->|"laptop: mv"| DS["GSE52778/"]
+  DL -->|"cluster: scp from laptop"| DS
+  CLI["no browser:<br/>ENA API / efetch"] --> DS
+```
+
+::: {.book-link}
+[Where to put the two files](../chapters/finding-data.html#where-files-go)
+:::
+
+## Moving them into place {#moving-files}
+
+```bash
+# working on this computer
+mkdir -p ~/public_data/GSE52778 && cd ~/public_data/GSE52778
+mv ~/Downloads/SRR_Acc_List.txt ~/Downloads/SraRunTable.csv .
+
+# working on a cluster: run this ON YOUR LAPTOP
+scp ~/Downloads/SRR_Acc_List.txt ~/Downloads/SraRunTable.csv \
+    <user>@<cluster>:/scratch/<user>/public_data/GSE52778/
+
+# then check
+wc -l SRR_Acc_List.txt; head -3 SRR_Acc_List.txt; head -2 SraRunTable.csv
+```
+
+Downloaded twice? Browsers save `SRR_Acc_List (1).txt`: rename as you move.
+
+## Columns that matter {#runtable}
+
+| Column | Why |
+|---|---|
+| `Run` | What you download |
+| `BioSample`, `Sample Name`, `GEO_Accession` | Which sample (several runs can share one) |
+| `LibraryLayout` | `PAIRED` or `SINGLE` |
+| `AvgSpotLen` | Read 1 + read 2 (126 = 2 × 63) |
+| `Bytes` | Plan disk space |
+| `treatment`, `cell_line`, … | The biology (names vary) |
+
+**Save `SraRunTable.csv` with your data.** It's your samplesheet's source.
+
+## The same thing, from ENA or the command line {#ena-cli}
+
+```bash
+# ENA: one table, with direct FASTQ links and MD5s
+curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=SRP033351&result=read_run&fields=run_accession,sample_title,library_layout,read_count,fastq_ftp,fastq_md5&format=tsv"
+
+# NCBI Entrez Direct
+esearch -db sra -query PRJNA229998 | efetch -format runinfo > runinfo.csv
+
+# pysradb
+pysradb metadata SRP033351 --detailed
+```
+
+## Before you download: checklist {#checklist}
+
+- [ ] Right assay (`LibraryStrategy`, the GEO design)
+- [ ] Which runs belong to which sample
+- [ ] Paired or single-end; read length
+- [ ] Library kit / strandedness, if stated
+- [ ] Disk: **10–20×** the summed `Bytes`, free
+- [ ] Open access (not dbGaP / EGA)
+
+## Recap {#recap}
+
+1. **GEO** describes; **SRA / ENA** store the reads.
+2. **Sample → library → run.** Download runs; merge runs of one library.
+3. Save **`SraRunTable.csv`** and **`SRR_Acc_List.txt`** at the top of **one
+   folder per dataset**, and run everything from there.
+
+Next deck: getting the reads onto your disk, and checking them.
+
+::: {.book-link}
+[Guide: jpflores-13.github.io/download-public-data](../index.html)
+:::

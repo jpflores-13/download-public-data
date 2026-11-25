@@ -3,7 +3,7 @@
 ## files named like Illumina output: <sample>_R1_001.fastq.gz, <sample>_R2_001.fastq.gz
 ##
 ## Usage:
-##   bash scripts/merge_runs.sh runs_to_samples.tsv fastq merged
+##   bash ~/download-public-data/scripts/merge_runs.sh runs_to_samples.tsv fastq merged
 ##
 ## runs_to_samples.tsv: tab-separated, with a header line, columns: run  sample
 ##   run          sample
