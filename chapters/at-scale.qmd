@@ -8,7 +8,11 @@ flowchart TD
   Q{"Where are you running?"} -->|"laptop / any computer"| A["Route A: a simple loop<br/>one run after another"]
   Q -->|"workstation with<br/>many cores"| B["Route B: a few runs<br/>in parallel (xargs -P)"]
   Q -->|"cluster with SLURM"| C["Route C: an array job<br/>(scripts/download_sra.sh)"]
-  A & B & C --> S["Same steps per run:<br/>prefetch → vdb-validate → fasterq-dump → compress → clean up"]
+  Q -->|"cluster, one job per run"| D["Route D: one sbatch per run<br/>(scripts/submit_each.sh)"]
+  A & B & C & D --> S["Same steps per run:<br/>prefetch → vdb-validate → convert → compress → clean up"]
+  S --> F{"Anything missing?<br/>find_missing.sh"}
+  F -->|"yes: failed.txt"| R["Resubmit only those"] --> S
+  F -->|"no"| DONE(["Verify and organise"])
 ```
 
 All three do the same thing for each run:
@@ -106,10 +110,69 @@ runs are skipped.
 ::: {.callout-tip collapse="true"}
 ## On UNC Longleaf
 
-Run from your `/work` folder, and add `-p general` to `sbatch` if you want to
-name the partition. `module avail sra` shows the toolkit's module name; pass it
+Run from your `/work` scratch folder (older notes may say `/pine`, the scratch
+space Longleaf used before `/work`). Add `-p general` to `sbatch`, or
+`PARTITION=general` for `submit_each.sh`, to name the partition. Both
+`sratoolkit` and `parallel-fastq-dump` are available as modules; check current
+versions with `module avail`, and avoid pinning old 2.x toolkit versions. `module avail sra` shows the toolkit's module name; pass it
 with `--export=ALL,SRA_MODULE=<name>` if the script's defaults don't match.
 :::
+
+## Route D: one job per run
+
+Some people prefer to submit a separate, ordinary job for each accession rather
+than an array: each job has its own name (`dl_SRR1039508`) and log, which makes
+failures easy to spot, and nothing else depends on it.
+[`scripts/submit_each.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/submit_each.sh)
+loops over the list and submits one job per run with a *heredoc*: the job
+script is written inline, between `<<EOS` and `EOS`, and fed straight to
+`sbatch`.
+
+```bash
+bash download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
+```
+
+Choose the converter and resources with environment variables:
+
+```bash
+CONVERTER=parallel THREADS=4 PARTITION=general \
+  bash download-public-data/scripts/submit_each.sh SRR_Acc_List.txt fastq
+```
+
+`CONVERTER=fasterq` (the default) uses `fasterq-dump` + `pigz`;
+`CONVERTER=parallel` uses `parallel-fastq-dump --split-3 --gzip`, which needs less
+temporary disk ([Three converters](fasterq-dump.qmd#three-converters)). Runs that
+already have FASTQ are skipped.
+
+## Retrying what failed {#retrying}
+
+Downloads from NCBI **do fail sometimes**: connections drop, servers are
+busy, and NCBI says plainly that some failures can only be fixed by trying
+again ([Network and connection errors](https://github.com/ncbi/sra-tools/wiki/Network-and-Connection-Errors)).
+So plan for a retry loop from the start:
+
+1. Download everything (any route above).
+2. List what's missing or broken:
+
+   ```bash
+   bash download-public-data/scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
+   ```
+
+   It prints why each run is listed (no FASTQ, a corrupt `.gz`, or `_1` and `_2`
+   with different read counts) and writes just the accessions to `failed.txt`.
+3. Resubmit only those, with the same route but `failed.txt` as the list:
+
+   ```bash
+   bash download-public-data/scripts/submit_each.sh failed.txt fastq
+   ```
+4. Repeat 2–3 until `failed.txt` is empty.
+
+Checking the **output files** like this is more reliable than searching logs
+for error messages: it also catches jobs that were killed or ran out of time
+without printing anything. To see what went wrong for a run, read its log
+(`logs/dl_<accession>_*.err`, or the array task's log). If the same run keeps
+failing, check [Troubleshooting](troubleshooting.qmd) and try downloading it
+from [ENA](ena.qmd) instead.
 
 ## Other schedulers
 

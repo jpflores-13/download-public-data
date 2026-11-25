@@ -21,6 +21,8 @@ pigz -p 6 SRR1039508*.fastq
 | Script | Does |
 |---|---|
 | `scripts/download_sra.sh` | SLURM array job: prefetch → validate → fasterq-dump → compress, one run per task |
+| `scripts/submit_each.sh` | One SLURM job per run (fasterq-dump or parallel-fastq-dump) |
+| `scripts/find_missing.sh` | List runs with missing/corrupt/mismatched FASTQ, to resubmit |
 | `scripts/merge_runs.sh` | Join runs of the same sample; rename to `<sample>_R1_001.fastq.gz` |
 | `scripts/ena_download.sh` | Download `.fastq.gz` straight from ENA and check MD5s |
 

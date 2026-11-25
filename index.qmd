@@ -86,6 +86,8 @@ The repository's `scripts/` folder has ready-to-use scripts:
 | Script | Does | Runs on |
 |---|---|---|
 | [`scripts/download_sra.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/download_sra.sh) | prefetch → validate → fasterq-dump → compress, one run per array task | Any SLURM cluster |
+| [`scripts/submit_each.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/submit_each.sh) | The same steps, as one ordinary job per run; `fasterq-dump` or `parallel-fastq-dump` | Any SLURM cluster |
+| [`scripts/find_missing.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/find_missing.sh) | List runs with missing, corrupt or mismatched FASTQ, to resubmit | Anywhere |
 | [`scripts/merge_runs.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/merge_runs.sh) | Combine runs of the same sample; rename to `<sample>_R1_001.fastq.gz` | Anywhere |
 | [`scripts/ena_download.sh`](https://github.com/jpflores-13/download-public-data/blob/main/scripts/ena_download.sh) | Download ready-made `.fastq.gz` from ENA and check MD5s | Anywhere with `curl`, `wget`, `md5sum` |
 

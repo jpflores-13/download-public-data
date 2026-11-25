@@ -92,25 +92,54 @@ matter for pipelines. If a tool insists on a particular format,
 `--seq-defline` and `--qual-defline` set a custom name (for example
 `--seq-defline '@$ac.$si/$ri'` adds `/1` or `/2`).
 
-## fasterq-dump vs the old fastq-dump
+## Three converters: fastq-dump, parallel-fastq-dump, fasterq-dump {#three-converters}
 
-You'll see `fastq-dump` in older tutorials:
+You'll meet three tools that turn SRA data into FASTQ. They produce the same
+reads; they differ in speed, compression and how they split pairs.
+
+| | `fastq-dump` | `parallel-fastq-dump` | `fasterq-dump` |
+|---|---|---|---|
+| From | SRA Toolkit (original) | A separate wrapper ([bioconda](https://bioconda.github.io/recipes/parallel-fastq-dump/README.html)) | SRA Toolkit (current) |
+| How it works | One thread | Splits the run into chunks and runs `fastq-dump` on each in parallel, then joins them | Multi-threaded rewrite |
+| Speed | Slow (hours for a large run) | Faster, roughly with the number of threads | Fastest |
+| Gzip output | `--gzip` | `--gzip` | No: compress afterwards (`pigz`) |
+| Default split | None (one file!) | Same as fastq-dump: give it a split option | `--split-3` |
+| Temp space | Little | Some (`--tmpdir`) | A lot ([Disk space](#disk-space)) |
+| Grab only the first *N* reads | `-X N` | `-X N` (passed to fastq-dump) | No |
+
+The equivalent commands for a paired-end run:
 
 ```bash
-fastq-dump --split-3 --gzip SRR1039508          # old: one thread, slow, but can gzip
-fasterq-dump SRR1039508                          # new: same split by default, many threads, no gzip
+fasterq-dump        sra/SRR1039508 --threads 4 --temp tmp --outdir fastq && pigz -p 4 fastq/SRR1039508*.fastq
+parallel-fastq-dump --sra-id sra/SRR1039508 --threads 4 --outdir fastq --tmpdir tmp --split-3 --gzip
+fastq-dump          sra/SRR1039508 --outdir fastq --split-3 --gzip          # one thread
 ```
 
-| | fastq-dump | fasterq-dump |
-|---|---|---|
-| Speed | slow (one thread) | fast (multi-threaded) |
-| Default split | none (one file!) | `--split-3` |
-| Gzip output | `--gzip` | no; compress afterwards |
-| Subset of reads (`-X`, `-N`) | yes | no |
-| Temp space | little | a lot |
+`parallel-fastq-dump` passes options it doesn't know (such as `--split-3` or
+`--skip-technical`) on to `fastq-dump`. Install it with
+`conda install -c bioconda parallel-fastq-dump` or `module load parallel-fastq-dump`.
 
-`fastq-dump -X 1000 --split-3 SRR...` is still handy to grab the **first 1,000
-spots** for a quick look without downloading everything.
+::: {.callout-warning}
+## `--split-files` vs `--split-3` with fastq-dump
+
+Many older scripts use `fastq-dump --split-files` (or the same with
+`parallel-fastq-dump`). For runs where **every** spot has both reads, that's
+fine. But if some spots have only one read (common in public data; several
+airway runs do), `--split-files` writes those single reads into `_1` only, so
+**`_1` and `_2` end up with different numbers of reads and fall out of step**.
+Aligners then pair the wrong reads or stop with an error. `--split-3` puts
+those orphans in a third file and keeps `_1`/`_2` matched. Prefer `--split-3`,
+and always compare the read counts of `_1` and `_2`
+([Verify](verify-organise.qmd#do-the-read-counts-match-the-archive)).
+:::
+
+Which to use? `fasterq-dump` if you have the temporary disk space, otherwise
+`parallel-fastq-dump`. Use `fastq-dump -X 1000 --split-3 SRR...` to peek at the
+first 1,000 spots without downloading the whole run.
+
+Avoid running any of them directly on an accession for a large run without
+`prefetch` first. Streaming many GB over the network is the slowest option and
+the one most likely to stop half-way and leave a truncated file.
 
 ::: {.callout-tip}
 ## Check your understanding

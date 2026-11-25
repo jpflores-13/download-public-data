@@ -25,6 +25,14 @@ while read -r a; do prefetch "$a" --max-size u -O sra && fasterq-dump "sra/$a" -
 mkdir -p logs
 sbatch --array=1-$(grep -c . SRR_Acc_List.txt)%4 scripts/download_sra.sh SRR_Acc_List.txt fastq
 
+## many runs: one job per run, then retry what failed
+bash scripts/submit_each.sh SRR_Acc_List.txt fastq            # CONVERTER=parallel to use parallel-fastq-dump
+bash scripts/find_missing.sh SRR_Acc_List.txt fastq > failed.txt
+bash scripts/submit_each.sh failed.txt fastq                  # repeat until failed.txt is empty
+
+## parallel-fastq-dump (gzip built in, less temp space)
+parallel-fastq-dump --sra-id sra/SRR... --threads 4 --outdir fastq --tmpdir tmp --split-3 --gzip
+
 ## from ENA instead
 bash scripts/ena_download.sh <ACC> fastq
 

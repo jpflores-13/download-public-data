@@ -12,5 +12,8 @@
 | `_1` and `_2` have different read counts | A file is truncated | `gzip -t`; reconvert that run |
 | Quality line is all `?` | SRA Lite data | Fine for counting; for qualities, prefer Normalized in `vdb-config -i` |
 | `vdb-validate` reports errors | Corrupt download | Delete the run folder and `prefetch` again |
+| Some runs failed, others finished | Network drops; unavoidable now and then | `scripts/find_missing.sh` → `failed.txt` → resubmit ([Retrying](at-scale.qmd#retrying)) |
+| `_1` and `_2` differ in read count after `fastq-dump --split-files` | Unpaired spots went into `_1` only | Reconvert with `--split-3` ([Three converters](fasterq-dump.qmd#three-converters)) |
+| `vdb-config -i` shows garbage or won't open over ssh | Full-screen mode not supported by the terminal | `vdb-config --interactive-mode textual` |
 | Leftover `fasterq.tmp.*` folders | A conversion was killed | Delete them |
 | Array tasks say `fasterq-dump not found` | No conda env active and module name differs | `conda activate sra` before `sbatch`, or `--export=ALL,SRA_MODULE=<name>` ([Downloading many runs](at-scale.qmd#route-c-an-array-job-on-a-slurm-cluster)) |

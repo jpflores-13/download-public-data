@@ -119,9 +119,22 @@ vdb-config --prefetch-to-cwd
 
 (Or run `vdb-config -i`, open the **TOOLS** tab, and set the location there.)
 
+::: {.callout-note}
+## `vdb-config -i` won't open on a cluster?
+
+The interactive screen sometimes fails over `ssh` (even with `ssh -X`/`-Y`).
+Ask for the plain-text version instead:
+
+```bash
+vdb-config --interactive-mode textual
+```
+
+It shows the same settings as numbered menus that work in any terminal.
+:::
+
 ### SRA Lite or Normalized {#sra-lite-or-normalized}
 
-`vdb-config -i` opens an interactive screen. On its main page there is an option
+`vdb-config -i` (or `vdb-config --interactive-mode textual`) opens an interactive screen. On its main page there is an option
 **"Prefer SRA Lite files with simplified base quality scores"**
 ([what that means](databases.qmd#whats-in-an-.sra-file)):
 
